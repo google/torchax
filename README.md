@@ -1,60 +1,59 @@
 # torchax: Running PyTorch on TPU via JAX
 
-**torchax** is a backend for PyTorch, allowing users to run
-PyTorch on Google Cloud TPUs. **torchax** is also a library for providing
-graph-level interoperability between PyTorch and JAX.
+**torchax** is a backend for PyTorch that allows users to run
+PyTorch programs on Google Cloud TPUs. It also provides graph-level
+interoperability between PyTorch and JAX.
 
-This means, with **torchax** you can:
-* Run PyTorch code on TPUs with as little as 2 lines of code change.
-* Call a JAX function from a PyTorch function, passing in `jax.Array`s.
-* Call a PyTorch function from a JAX function, passing in a `torch.Tensor`s.
-* Use JAX features such as `jax.grad`, `optax`, and `GSPMD` to train a PyTorch
-  model.
-* Use a PyTorch model as feature extractor and use it with a JAX model.
-etc etc.
+With **torchax**, you can:
+* Run PyTorch code on TPUs with minimal code changes.
+* Call JAX functions from PyTorch, passing in `jax.Array`s.
+* Call PyTorch functions from JAX, passing in `torch.Tensor`s.
+* Use JAX features like `jax.grad`, `optax`, and `GSPMD` to train PyTorch
+  models.
+* Use a PyTorch model as a feature extractor with a JAX model.
 
 ## Install
 
-First install torch CPU:
+First, install the CPU version of PyTorch:
 
 ```bash
-# On Linux.
+# On Linux
 pip install torch --index-url https://download.pytorch.org/whl/cpu
 
-# Or on Mac.
+# On Mac
 pip install torch
 ```
 
-Then install JAX for the accelerator you want to use:
+Next, install JAX for your desired accelerator:
 
 ```bash
-# On Google Cloud TPU.
+# On Google Cloud TPU
 pip install -U jax[tpu]
 
-# Or, on GPU machines.
+# On GPU machines
 pip install -U jax[cuda12]
 
-# Or, on Linux CPU machines or Macs (see the note below).
+# On Linux CPU machines or Macs (see the note below)
 pip install -U jax
 ```
 
-NOTE: if you like metal support for Apple devices then install the
-metal version of JAX: https://developer.apple.com/metal/jax/
+Note: For Apple devices, you can install the [Metal version](https://developer.apple.com/metal/jax/) of JAX for
+hardware acceleration.
 
-Finally install torchax:
+Finally, install torchax:
 
 ```bash
-# Install pre-built torchax.
+# Install from PyPI
 pip install torchax
 
-# Or, install torchax from source.
+# Or, install from source
 pip install git+https://github.com/pytorch/xla.git#subdirectory=torchax
 ```
 
-## Run a model
+## Running a Model
 
-Now let's execute a model under torchax. We'll start with a simple 2-layer model.
-In theory, we can use any instance of `torch.nn.Module`.
+To execute a model with torchax, start with any `torch.nn.Module`.
+Here’s an example with a simple 2-layer model:
 
 ```python
 import torch
@@ -103,42 +102,31 @@ print(res.jax()) # print the underlying Jax Array
 `torchax.tensor.Tensor` is a `torch.Tensor` subclass that holds
 a `jax.Array`. You can inspect that JAX array with `res.jax()`.
 
-In other words, despite that the code above looks like PyTorch, it is actually running JAX!
+Although the code appears to be standard PyTorch, it's actually running on JAX.
 
-## What is happening behind the scene
+## How It Works
 
-We took the approach detailed in the
-[new device](https://github.com/albanD/subclass_zoo/blob/main/new_device.py)
-recipe by Alban (@albanD), using `jax.Array` for `raw_data`.
+torchax uses a `torch.Tensor` subclass, `torchax.tensor.Tensor`, which holds a
+`jax.Array` and overrides the `__torch_dispatch__` method. When a PyTorch operation
+is executed within the torchax environment (enabled by `torchax.enable_globally()`),
+the implementation of that operation is swapped with its JAX equivalent.
 
-In other words, when a torch op is executed inside an `env` context manager,
-which is enabled by `torchax.enable_globally()`, we will swap out the
-implementation of that op with JAX.
+When a model is instantiated, tensor constructors like `torch.rand` create
+`torchax.tensor.Tensor` objects containing `jax.Arrays`. Subsequent operations
+extract the `jax.Array`, call the corresponding JAX implementation, and wrap the
+result back into a `torchax.tensor.Tensor`.
 
-When a model's constructor runs, it will call some tensor constructor, such as
-`torch.rand`, `torch.ones`, or `torch.zeros` to create its weights. When torchax
-is enabled, these constructors will create a `torchax.tensor.Tensor`, which
-contains a `jax.Array`.
+For more details, see the [How It Works](docs/how_it_works.md) and
+[Ops Registry](docs/ops_registry.md) documentation.
 
-Then, each subsequent op will extract the `jax.Array`, call the op's JAX
-implementation, and wrap the result back into a `torchax.tensor.Tensor`,
+### Executing with `jax.jit`
 
-See more at [how it works](docs/how_it_works.md) and\
-[ops registry](docs/ops_registry.md).
+While torchax can run models in eager mode, `jax.jit` can be used for better performance.
+`jax.jit` is a decorator that compiles a function that takes and returns `torch.Tensors`
+into a faster, JAX-compiled version.
 
-### Executing with jax.jit
-
-The above script will execute the model using eager mode JAX as the backend. This
-does allow executing torch models on TPUs, but is often slower than what we can
-achieve with `jax.jit`.
-
-`jax.jit` is a function that takes a JAX function (i.e. a function that takes JAX arrays
-and returns JAX arrays) into a compiled (thus faster) version of the same function.
-
-We have made a `jax_jit` decorator that would accomplish the same with functions
-that takes and returns `torch.Tensor`s. To use this, the first step is to create
-a functional version of this model: this means the parameters should be passed in
-as input instead of being attributes of the class:
+To use `jax.jit`, you first need a functional version of your model where parameters
+are passed as inputs:
 
 ```python
 def model_func(param, inputs):
@@ -184,7 +172,9 @@ will be fast as the compilation is cached.
 
 ## Saving and Loading Checkpoints
 
-You can use `torchax.save_checkpoint` and `torchax.load_checkpoint` to save and load your training state. The state can be a dictionary containing the model's weights, optimizer state, and any other information you want to save.
+You can save and load your training state using `torchax.save_checkpoint` and `torchax.load_checkpoint`.
+The state can be a dictionary containing the model's weights, optimizer state, and any other relevant
+information.
 
 ```python
 import torchax
@@ -230,16 +220,12 @@ epoch = loaded_state['epoch']
 }
 ```
 
-# Maintainers & Contributors:
+## Maintainers & Contributors
 
-This library is created and maintained by the PyTorch/XLA team at Google Cloud.
+This library is maintained by a team within Google Cloud. It has benefited from
+many contributions from both inside and outside the team.
 
-It benefitted from many direct and indirect
-contributions outside of the team. Many of them done by
-fellow Googlers using [Google's 20% project policy](https://ebsedu.org/blog/google-tapping-workplace-actualization-20-time-rule).
-Others by partner teams at Google and other companies.
-
-Here is the list of contributors by 2025-02-25.
+Thank you to recent contributors.
 
 ```
 Han Qi (qihqi), PyTorch/XLA
@@ -279,3 +265,6 @@ Fanhai Lu (FanhaiLu1), Google Cloud
 DeWitt Clinton (dewitt), Google PyTorch
 Aman Gupta (aman2930), Google (20%)
 ```
+
+A special thank you to @albanD for the [initial inspiration](https://github.com/albanD/subclass_zoo/blob/main/new_device.py)
+for torchax.
