@@ -48,7 +48,7 @@ Finally install torchax:
 pip install torchax
 
 # Or, install torchax from source.
-pip install git+https://github.com/pytorch/xla.git#subdirectory=torchax
+pip install git+https://github.com/google/torchax
 ```
 
 ## Run a model
