@@ -1,4 +1,4 @@
-# Copyright 2025 Google LLC
+# # Copyright 2025 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -19,43 +19,44 @@
 
 import os
 import sys
-sys.path.insert(0, os.path.abspath('../../'))
+
+sys.path.insert(0, os.path.abspath("../../"))
 
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
-project = 'torchax'
-copyright = '2025, Pytorch/XLA team'
-author = 'Pytorch/XLA team'
-release = '0.0.1' # TODO: dynamically get this from hatch
+project = "torchax"
+copyright = "2025, Google"
+author = "qihqi, Pytorch/XLA team, Google"
+release = "0.0.5"  # TODO: dynamically get this from hatch
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
 
 extensions = [
-    'sphinx.ext.autodoc',
-    'sphinx.ext.autosummary',
-    'sphinx.ext.napoleon',
-    'sphinx.ext.viewcode',
-    'sphinx.ext.intersphinx',
+    "sphinx.ext.autodoc",
+    "sphinx.ext.autosummary",
+    "sphinx.ext.napoleon",
+    "sphinx.ext.viewcode",
+    "sphinx.ext.intersphinx",
 ]
 
-templates_path = ['_templates']
-exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
+templates_path = ["_templates"]
+exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
 
 # -- Options for HTML output -------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
 
-html_theme = 'sphinx_rtd_theme'
-html_static_path = ['_static']
+html_theme = "sphinx_rtd_theme"
+html_static_path = ["_static"]
 
 # -- Intersphinx mapping ---------------------------------------------------
 intersphinx_mapping = {
-    'python': ('https://docs.python.org/3', None),
-    'numpy': ('https://numpy.org/doc/stable/', None),
-    'torch': ('https://pytorch.org/docs/stable/', None),
-    'jax': ('https://jax.readthedocs.io/en/latest/', None),
+    "python": ("https://docs.python.org/3", None),
+    "numpy": ("https://numpy.org/doc/stable/", None),
+    "torch": ("https://pytorch.org/docs/stable/", None),
+    "jax": ("https://jax.readthedocs.io/en/latest/", None),
 }
 
 # -- Autodoc options -------------------------------------------------------
-autodoc_member_order = 'bysource'
+autodoc_member_order = "bysource"
