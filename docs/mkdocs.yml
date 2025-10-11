@@ -1,0 +1,17 @@
+site_name: torchax
+theme:
+  name: readthedocs
+
+nav:
+  - What is torchax: index.md
+  - User Guide:
+      - Get Started: user_guide/get-started.md
+      - How it works: user_guide/how-it-works.md
+
+  # TODO:
+  # - Tutorials:
+  #     - Training a PyTorch model with Jax train loop
+  #     - Distributed training with Automatic Parallelization
+
+plugins:
+  - search

@@ -5,9 +5,13 @@ name: Python package
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
+    paths-ignore:
+      - "docs/**"
   pull_request:
-    branches: [ "main" ]
+    branches: ["main"]
+    paths-ignore:
+      - "docs/**"
 
 jobs:
   build:
@@ -19,32 +23,32 @@ jobs:
         python-version: ["3.11", "3.12", "3.13"]
 
     steps:
-    - uses: actions/checkout@v5
+      - uses: actions/checkout@v5
 
-    - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v6
-      with:
-        python-version: ${{ matrix.python-version }}
-    - name: Install dependencies
-      run: |
-        pip install --upgrade pip
-        pip install pytest
-        pip install -e .[cpu]
-        pip install -r test-requirements.txt
-    - name: Test with pytest
-      shell: bash
-      run: |
-        export JAX_PLATFORMS=cpu
-        # Find all Python test files recursively
-        find ./test -name "test_*.py" -type f | while IFS= read -r test_file; do
-          # Skip tests with known issues
-          if [[ "$test_file" == *"test_tf_integration.py"* ]]; then
-            echo "Skipping ${test_file}. TODO(https://github.com/pytorch/xla/issues/8770): Investigate"
-            continue
-          fi
-          echo "Running tests for $test_file"
-          pytest "$test_file"
-        done
-        # Run distributed tests.
-        XLA_FLAGS=--xla_force_host_platform_device_count=4 pytest -n 0 test_dist/
-        echo "Tests completed."
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install pytest
+          pip install -e .[cpu]
+          pip install -r test-requirements.txt
+      - name: Test with pytest
+        shell: bash
+        run: |
+          export JAX_PLATFORMS=cpu
+          # Find all Python test files recursively
+          find ./test -name "test_*.py" -type f | while IFS= read -r test_file; do
+            # Skip tests with known issues
+            if [[ "$test_file" == *"test_tf_integration.py"* ]]; then
+              echo "Skipping ${test_file}. TODO(https://github.com/pytorch/xla/issues/8770): Investigate"
+              continue
+            fi
+            echo "Running tests for $test_file"
+            pytest "$test_file"
+          done
+          # Run distributed tests.
+          XLA_FLAGS=--xla_force_host_platform_device_count=4 pytest -n 0 test_dist/
+          echo "Tests completed."
