@@ -7,13 +7,13 @@ together when authoring ML programs, and run it in every hardware JAX can
 run.
 
 With **torchax**, you can:
-* Call JAX functions from PyTorch, passing in `jax.Array`s.
-* Call PyTorch functions from JAX, passing in `torch.Tensor`s.
-* Use JAX features like `jax.grad`, `optax`, and `GSPMD` to train PyTorch
-  models.
-* Use a PyTorch model as a feature extractor with a JAX model.
-* Run PyTorch code on hardwares where JAX is supported, such as Google TPUs,
-  with minimal code changes.
+
+  * Call JAX functions from PyTorch, passing in `jax.Array`s.
+  * Call PyTorch functions from JAX, passing in `torch.Tensor`s.
+  * Use JAX features like `jax.grad`, `optax`, and `Auto-Parallelisation` to train PyTorch models.
+  * Use a PyTorch model as a feature extractor with a JAX model.
+  * Run PyTorch code on hardwares where JAX is supported, such as Google TPUs,
+    with minimal code changes.
 
 
 ## Installation
@@ -40,6 +40,7 @@ pip install -U jax[cuda12]
 # Or, on Linux CPU machines or Macs.
 pip install -U jax
 ```
+Or, follow a method on https://docs.jax.dev/en/latest/installation.html to install Jax.
 
 Finally install torchax:
 
