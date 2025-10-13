@@ -1352,16 +1352,10 @@ def max_pool(
     indices = indices.reshape(inputs.shape[-len(kernel_size) :])
     indices = jnp.broadcast_to(indices, inputs.shape)
 
-    def reduce_fn(a, b):
-        ai, av = a
-        bi, bv = b
-        which = av >= bv  # torch breaks ties in favor of later indices
-        return jnp.where(which, ai, bi), jnp.where(which, av, bv)
-
-    init_val = -jnp.inf
     if inputs.dtype in (jnp.int32, jnp.int64):
-        init_val = -(1 << 31)
-    init_val = jnp.array(init_val).astype(inputs.dtype)
+        init_val = jnp.iinfo(inputs.dtype).min
+    else:
+        init_val = jnp.finfo(inputs.dtype).min
 
     if not with_index:
         y = jax.lax.reduce_window(
@@ -1377,6 +1371,13 @@ def max_pool(
             y = jnp.squeeze(y, axis=0)
         return y
     else:
+
+        def reduce_fn(a, b):
+            ai, av = a
+            bi, bv = b
+            which = av >= bv  # torch breaks ties in favor of later indices
+            return jnp.where(which, ai, bi), jnp.where(which, av, bv)
+
         indices, y = jax.lax.reduce_window(
             (indices, inputs),
             (0, init_val),

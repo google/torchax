@@ -619,6 +619,7 @@ def _functional_max_pool2d(
         stride = kernel_size
     if isinstance(stride, int):
         stride = (stride, stride)
+
     return jaten.max_pool(
         input,
         kernel_size,
