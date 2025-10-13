@@ -35,6 +35,7 @@ jobs:
           pip install pytest
           pip install -e .[cpu]
           pip install -r test-requirements.txt
+          pip install jupyter nbconvert pandas matplotlib
       - name: Test with pytest
         shell: bash
         run: |
@@ -52,3 +53,10 @@ jobs:
           # Run distributed tests.
           XLA_FLAGS=--xla_force_host_platform_device_count=4 pytest -n 0 test_dist/
           echo "Tests completed."
+      - name: Test tutorials can run
+        shell: bash
+        run: |
+          export JAX_PLATFORMS=cpu
+          for FILE in $(find docs -name '*.ipynb'); do
+            jupyter nbconvert --to notebook --execute $FILE;
+          done

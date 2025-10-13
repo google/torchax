@@ -1,6 +1,7 @@
 site_name: torchax
 theme:
   name: readthedocs
+  #name: material
 
 nav:
   - What is torchax: index.md
@@ -8,10 +9,19 @@ nav:
       - Get Started: user_guide/get-started.md
       - How it works: user_guide/how-it-works.md
 
-  # TODO:
-  # - Tutorials:
-  #     - Training a PyTorch model with Jax train loop
-  #     - Distributed training with Automatic Parallelization
+  - Tutorials:
+      - Training a PyTorch model with Jax train loop: tutorials/trainingyt.ipynb
+  #   - Distributed training with Automatic Parallelization
+
+markdown_extensions:
+  - pymdownx.arithmatex:
+      generic: true
+
+extra_javascript:
+  - javascripts/mathjax.js
+  - https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js
 
 plugins:
   - search
+  - mkdocs-jupyter:
+      include_source: True
