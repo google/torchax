@@ -7,4 +7,3 @@ expecttest==0.3.0
 optax==0.2.4
 pytest
 pytest-xdist
-torchvision

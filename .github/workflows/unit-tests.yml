@@ -32,6 +32,8 @@ jobs:
       - name: Install dependencies
         run: |
           pip install --upgrade pip
+          # note: installing torch and torchvision together ensures their version compatibility
+          pip install torch==2.8.0 torchvision --index-url https://download.pytorch.org/whl/cpu
           pip install pytest
           pip install -e .[cpu]
           pip install -r test-requirements.txt
