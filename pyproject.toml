@@ -19,12 +19,12 @@ build-backend = "hatchling.build"
 [project]
 name = "torchax"
 dependencies = []
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 license = {file = "LICENSE"}
 dynamic = ["version"]
 authors = [
     {name = "Han Qi", email = "qihan.dev@gmail.com"},
-    {name = "Pytorch/XLA team", email = "pytorchxla-dev@google.com"},
+    {name = "Google Cloud Inference Team", email = "cmcs-inference-eng@google.com"},
 ]
 description = "torchax is a library for running Jax and PyTorch together"
 readme = "README.md"
@@ -33,21 +33,20 @@ classifiers = [
     "Intended Audience :: Developers",
     "Intended Audience :: Education",
     "Intended Audience :: Science/Research",
-    "License :: OSI Approved :: BSD License",
+    "License :: OSI Approved :: Apache Software License",
     "Topic :: Scientific/Engineering",
     "Topic :: Scientific/Engineering :: Mathematics",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
     "Topic :: Software Development",
     "Topic :: Software Development :: Libraries",
     "Topic :: Software Development :: Libraries :: Python Modules",
-    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
 ]
 
 [project.urls]
-"Homepage" = "https://github.com/pytorch/xla/tree/master/torchax"
+"Homepage" = "https://github.com/google/torchax"
 
 
 [tool.hatch.version]
