@@ -1352,10 +1352,13 @@ def max_pool(
     indices = indices.reshape(inputs.shape[-len(kernel_size) :])
     indices = jnp.broadcast_to(indices, inputs.shape)
 
-    if inputs.dtype in (jnp.int32, jnp.int64):
-        init_val = jnp.iinfo(inputs.dtype).min
+    return_dtype = inputs.dtype
+    if jnp.issubdtype(inputs.dtype, jnp.integer):
+        init_val = -np.array(1 << 31).astype(np.int32)
+        inputs = inputs.astype(jnp.array(init_val).dtype)
     else:
-        init_val = jnp.finfo(inputs.dtype).min
+        init_val = -jnp.inf
+        inputs = inputs.astype(jnp.array(init_val).dtype)
 
     if not with_index:
         y = jax.lax.reduce_window(
@@ -1369,7 +1372,7 @@ def max_pool(
         )
         if is_single_input:
             y = jnp.squeeze(y, axis=0)
-        return y
+        return y.astype(return_dtype)
     else:
 
         def reduce_fn(a, b):
@@ -1390,7 +1393,7 @@ def max_pool(
         if is_single_input:
             indices = jnp.squeeze(indices, axis=0)
             y = jnp.squeeze(y, axis=0)
-
+        y = y.astype(return_dtype)
         return y, indices
 
 
