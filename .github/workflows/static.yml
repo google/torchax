@@ -40,7 +40,7 @@ jobs:
       - name: Build site
         run: |
           cd docs
-          pip install mkdocs mkdocs-material mkdocs-rtd-dropdown
+          pip install mkdocs mkdocs-material mkdocs-rtd-dropdown mkdocs-jupyter
           mkdocs build
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
