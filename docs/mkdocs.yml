@@ -11,7 +11,7 @@ nav:
 
   - Tutorials:
       - Training a PyTorch model with Jax train loop: tutorials/trainingyt.ipynb
-  #   - Distributed training with Automatic Parallelization
+      - Distributed training with Automatic Parallelization: tutorials/distributed_array.ipynb
 
 markdown_extensions:
   - pymdownx.arithmatex:
