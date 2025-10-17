@@ -8,7 +8,7 @@ import functools
 import jax
 
 
-class MyEmbeddingModule(nn.Module):
+class EmbeddingTestModule(nn.Module):
     def __init__(self, num_embeddings, embedding_dim, padding_idx):
         super().__init__()
         self.embedding = nn.Embedding(
@@ -39,7 +39,7 @@ class TestEmbeddingPaddingIdx(unittest.TestCase):
         batch_size = 5
         seq_len = 8
 
-        model = MyEmbeddingModule(vocab_size, embedding_dim, padding_idx=0)
+        model = EmbeddingTestModule(vocab_size, embedding_dim, padding_idx=0)
         # Create input data that includes the padding_idx
         input_indices = torch.randint(1, vocab_size, (batch_size, seq_len))
         input_indices[0, :] = padding_idx  # Ensure padding_idx is present
@@ -91,13 +91,13 @@ class TestEmbeddingPaddingIdx(unittest.TestCase):
 
         _loss, output_embeddings, gradient, weights = run_train(model)
 
-        model = MyEmbeddingModule(vocab_size, embedding_dim, padding_idx=None)
+        model = EmbeddingTestModule(vocab_size, embedding_dim, padding_idx=None)
         with self.env:
             assert torch.all(output_embeddings[0, :] == 0.0)  # type: ignore
             assert torch.all(gradient["embedding.weight"][0, :] == 0.0)  # type: ignore
             assert torch.all(weights["embedding.weight"][0, :] == 0.0)
 
-            # non padded model still has 0-s at the padding row but they are learnable
+            # non padded model will still has 0-s at the padding index row but they are now learnable
             model.load_state_dict({"embedding.weight": weights_copy})
 
         _loss2, output_embeddings2, gradient2, weights2 = run_train(model)
