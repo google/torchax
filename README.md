@@ -116,7 +116,7 @@ When a model is instantiated, tensor constructors like `torch.rand` create
 extract the `jax.Array`, call the corresponding JAX implementation, and wrap the
 result back into a `torchax.tensor.Tensor`.
 
-For more details, see the [How It Works](docs/how_it_works.md) and
+For more details, see the [How It Works](docs/docs/user_guide/how-it-works.md) and
 [Ops Registry](docs/ops_registry.md) documentation.
 
 ### Executing with `jax.jit`
