@@ -566,12 +566,37 @@ def _aten_bmm(x, y):
     # return jnp.einsum('bnm,bmk->bnk', x, y)
 
 
+##################### Custom Embedding with padding_idx autograd hooks ###############################################
+@functools.partial(jax.custom_jvp, nondiff_argnums=(2, 3, 4))
+def _disable_pad_idx_grad_embedding_impl(a, w, padding_idx, scale_grad_by_freq, sparse):
+  """
+  Forward pass: same as the original one but with the custom jvp decorator. 
+  It assumes pytorch already sets the embedding tensor padding row to zeros by this moment.
+  """
+  output_embeds = jnp.take(a, w, axis=0)  
+  return output_embeds
+
+@_disable_pad_idx_grad_embedding_impl.defjvp
+def _embedding_jvp(padding_idx, scale_grad_by_freq, sparse, primals, tangents):
+  """Custom JVP rule for embedding to handle padding_idx gradients."""  
+  a, w = primals
+  a_dot, _w_dot = tangents
+
+  y = _disable_pad_idx_grad_embedding_impl(a, w, padding_idx, scale_grad_by_freq, sparse)    
+  a_dot = a_dot.at[padding_idx].set(0.0)
+  y_dot = jnp.take(a_dot, w, axis=0)
+  return y, y_dot
+
+#################################################################################
+
 @op(torch.ops.aten.embedding)
 # embedding(Tensor weight, Tensor indices, SymInt padding_idx=-1, bool scale_grad_by_freq=False, bool sparse=False)
 def _aten_embedding(
     a, w, padding_idx=-1, scale_grad_by_freq=False, sparse=False
-):
-    return jnp.take(a, w, axis=0)
+):    
+    if padding_idx == -1:
+        return jnp.take(a, w, axis=0)
+    return _disable_pad_idx_grad_embedding_impl(a, w, padding_idx, scale_grad_by_freq, sparse)
 
 
 @op(torch.ops.aten.embedding_renorm_)
