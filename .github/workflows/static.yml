@@ -37,10 +37,23 @@ jobs:
           python-version: 3.12
       - name: Setup Pages
         uses: actions/configure-pages@v5
-      - name: Build site
+      - name: Install dependencies
+        working-directory: docs
         run: |
-          cd docs
           pip install mkdocs mkdocs-material mkdocs-rtd-dropdown mkdocs-jupyter
+          mkdocs build
+      - name: Generate notebooks
+        working-directory: docs
+        run: |
+          export JAX_PLATFORMS=cpu
+          for FILE in $(find docs -name '*.py'); do
+            export OUTFILE="${FILE%.*}.ipynb"
+            jupytext --to ipynb $FILE -o "$OUTFILE"
+            jupyter nbconvert --to notebook --execute $OUTFILE --output $(basename $OUTFILE)
+          done
+      - name: Build site
+        working-directory: docs
+        run: |
           mkdocs build
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3

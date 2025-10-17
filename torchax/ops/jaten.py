@@ -117,7 +117,7 @@ def _aten_clone(x, memory_format=None):
 @op(torch.ops.aten.trunc)
 def _aten_trunc(x):
     res = jnp.trunc(x)
-    return res.astype(x)
+    return res.astype(x.dtype)
 
 
 @op(torch.ops.aten.index_copy)
@@ -1762,7 +1762,7 @@ def _aten_tanh(self):
 # aten.ceil
 @op(torch.ops.aten.ceil)
 def _aten_ceil(self):
-    return jnp.ceil(self).astype(self)
+    return jnp.ceil(self).astype(self.dtype)
 
 
 # aten.asin
