@@ -648,7 +648,7 @@ class Environment(contextlib.ContextDecorator):
 
   def t2j_iso(self, torchtensors):
     """Convert torchax Tensor to jax array.
-    
+
     This function will not copy, will just unwrap the inner jax array out.
     Note: iso is short for "isomorphic"
     """
@@ -681,7 +681,7 @@ class Environment(contextlib.ContextDecorator):
 
   def j2t_iso(self, jaxarray):
     """Convert jax array to torchax Tensor.
-    
+
     This function will not copy, will just wrap the jax array with a torchax Tensor
     Note: iso is short for "isomorphic"
     """
@@ -690,7 +690,7 @@ class Environment(contextlib.ContextDecorator):
 
   def j2t_copy(self, args):
     """Convert torch.Tensor in cpu to a jax array
-    
+
     This might involves copying the data (depending if dlpack is enabled)
     """
     return torch_pytree.tree_map_only(
@@ -700,7 +700,7 @@ class Environment(contextlib.ContextDecorator):
 
   def t2j_copy(self, args):
     """Convert jax array to torch.Tensor in cpu.
-    
+
     This might involves copying the data (depending if dlpack is enabled)
     """
     return torch_pytree.tree_map_only(

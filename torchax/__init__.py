@@ -25,6 +25,11 @@ from contextlib import contextmanager
 __version__ = "0.0.8"
 VERSION = __version__
 
+# the "fast path" uses some sparse tensor thingies that currently we
+# don't support
+torch.backends.mha.set_fastpath_enabled(False)
+
+
 __all__ = [
     "default_env",
     "extract_jax",
