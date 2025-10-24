@@ -56,6 +56,10 @@ class TestTorchFunctions(parameterized.TestCase):
 
     torch.testing.assert_close(actual.to('cpu'), expected)
 
+  def test_full_int(self):
+      a = torch.full((2,2), 1, device='jax')
+      self.assertEqual(a.dtype, torch.int64)
+
   def test_dont_capture_conversion(self):
     t = torch.tensor([1, 2, 3])
     with self.env:
@@ -108,7 +112,7 @@ class TestTorchFunctions(parameterized.TestCase):
        ((2, 2),)), ('empty_strided', torch.empty_strided,
                     ((2, 2), (2, 1))), ('tensor', torch.tensor, ([2.0, 2.0],)),
       ('eye', torch.eye, (2,)), ('randn', torch.randn, ((2, 2),)),
-      ('rand', torch.rand, ((2, 2),)), ('full', torch.full, ((2, 2), 0)))
+      ('rand', torch.rand, ((2, 2),)), ('full', torch.full, ((2, 2), 0.)))
   def test_requires_grad(self, func, args):
     x = func(*args, requires_grad=True, device='jax')
     self.assertEqual(x.requires_grad, True)

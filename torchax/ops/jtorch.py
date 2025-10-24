@@ -360,7 +360,7 @@ def _eye(n: int, m: Optional[int] = None, *, dtype=None, **kwargs):
 
 
 @register_function(torch.full)
-@op_base.convert_dtype()
+@op_base.convert_dtype(use_default_dtype=False)
 def _full(size: Sequence[int], fill_value, *, dtype=None, **kwargs):
     # TODO: handle torch.Size
     return jnp.full(size, fill_value, dtype=dtype)
