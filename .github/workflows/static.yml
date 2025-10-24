@@ -41,7 +41,7 @@ jobs:
         working-directory: docs
         run: |
           pip install mkdocs mkdocs-material mkdocs-rtd-dropdown mkdocs-jupyter
-          mkdocs build
+          mkdocs build numpy
       - name: Generate notebooks
         working-directory: docs
         run: |
