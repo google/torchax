@@ -381,6 +381,14 @@ class Environment(contextlib.ContextDecorator):
     return self._property.content[-1]
 
   def manual_seed(self, key):
+    if isinstance(key, torch.Tensor):
+        assert key.ndim == 0, 'manual seed can only take scalars'
+        assert not key.dtype.is_floating_point, 'manual seed can only be integers'
+
+        if isinstance(key, Tensor):
+            key = key._elem
+        else:
+            key = key.item()
     jax_key = jax.random.PRNGKey(key)
     new_prop = self.param.override(prng=jax_key)
     self._property.content.append(new_prop)

@@ -57,7 +57,6 @@ class MiscTest(unittest.TestCase):
 
   def test_to_device_twice(self):
     env = torchax.default_env()
-    env.config.debug_print_each_op = True
     with env:
       step1 = torch.ones(
           100,
@@ -67,6 +66,34 @@ class MiscTest(unittest.TestCase):
       step3 = step2.to(dtype=torch.bool, device='jax')
       step3.to('jax')
       self.assertEqual(step3.device.type, 'jax')
+
+  def test_random_with_tensor_input(self):
+    env = torchax.default_env()
+    with env:
+      env.manual_seed(torch.tensor(2))
+      x = torch.randn((2,2), device='jax')
+
+    with env:
+      env.manual_seed(torch.tensor(2))
+      y = torch.randn((2,2), device='jax')
+
+      self.assertTrue(torch.allclose(x, y))
+
+    def test_random_with_tensor_input(self):
+      env = torchax.default_env()
+
+      with env:
+        @torchax.interop.jax_jit
+        def rand_plus_one(rng):
+          env.manual_seed(torch.tensor(2))
+          x = torch.randn((2,2), device='jax') + 1
+          return x
+
+        x = rand_plus_one(0)
+        y = rand_plus_one(0)
+        self.assertTrue(torch.allclose(x, y))
+
+
 
 
 if __name__ == '__main__':

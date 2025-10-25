@@ -196,7 +196,6 @@ def _torch_view(t: JaxValue) -> TorchValue:
   # t is an object from jax land
   # view it as-if it's a torch land object
   if isinstance(t, jax.Array):
-    # TODO
     return tensor.Tensor(t, torchax.default_env())
   if isinstance(t, jnp.dtype):
     return mappings.j2t_dtype(t)
@@ -258,7 +257,7 @@ def j2t_autograd(fn, call_jax=call_jax):
   # wrapped pure function, preventing cache collisions between different pure modules.
   def _jax_forward(fn, other, tree_def, tensors):
     """JAX function to compute output and vjp function.
-  
+
     primals should be a tuple (args, kwargs).
     """
     import jax
@@ -274,7 +273,7 @@ def j2t_autograd(fn, call_jax=call_jax):
 
   def _jax_backward(vjp_spec, saved_tensors, grad_out):
     """JAX function to compute input gradients.
-  
+
     Unflattening `saved_tensors` with `vjp_spec` should restore the original vjp function.
     """
     from jax.tree_util import tree_unflatten
