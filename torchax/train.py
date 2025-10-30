@@ -20,12 +20,19 @@ import torchax
 from torchax import interop
 from torchax.interop import torch_view, jax_view
 import optax
+from torch.utils import _pytree as pytree
 
 remat = torch_view(jax.remat)
 mark_sharding = torch_view(jax.lax.with_sharding_constraint)
 
 
-def make_train_step(model_fn, loss_fn, optax_optimizer, remat_policy=None):
+def make_train_step(
+    model_fn,
+    loss_fn,
+    optax_optimizer,
+    remat_policy=None,
+    frozen_params_filter=None,
+):
     """Make a function that do one train step given model and loss.
 
     model_fn: a function representing the model's forward:
@@ -41,28 +48,49 @@ def make_train_step(model_fn, loss_fn, optax_optimizer, remat_policy=None):
     optax_optimizer: the optimizer from optax library. for example, optax.adam
     remat_policy: One of jax.ad_checkpoint.checkpoint_policies, specifies how
         to do gradient checkpointing. If None, then it means checkpoint everything.
+    frozen_params_filter: A function that takes a parameter name and returns
+        True if the parameter should be frozen.
     """
     env = torchax.default_env()
 
-    def loss(weights, buffers, args, label):  # inputs are XLATensor
+    def loss(trainable_weights, frozen_weights, buffers, args, label):
         with env, jax.named_scope("compute_loss"):
+            weights, _ = pytree.tree_unflatten(
+                pytree.tree_structure((trainable_weights, frozen_weights)),
+                pytree.tree_leaves((trainable_weights, frozen_weights)),
+            )
             res = model_fn(weights, buffers, args)
             l = loss_fn(res, label)
             return l
 
-    # loss = interop.gradient_checkpoint(loss, kwargs={'policy': remat_policy})
     grad_fn = interop.jax_value_and_grad(loss)
 
     def step(weights, buffers, opt_state, args, label):  # inputs are array
+        if frozen_params_filter:
+            trainable_weights, frozen_weights = pytree.tree_partition(
+                lambda n, v: v.requires_grad,
+                weights,
+                is_leaf=lambda x: isinstance(x, dict),
+            )
+        else:
+            trainable_weights = weights
+            frozen_weights = {}
+
         with jax.named_scope("compute_gradient"):
-            loss, gradient = grad_fn(weights, buffers, args, label)
+            loss_val, gradient = grad_fn(
+                trainable_weights, frozen_weights, buffers, args, label
+            )
 
         with jax.named_scope("optimizer_updates"):
             updates, opt_state = interop.call_jax(
-                optax_optimizer.update, gradient, opt_state, weights
+                optax_optimizer.update, gradient, opt_state, trainable_weights
             )
-            weights = interop.call_jax(optax.apply_updates, weights, updates)
-        return loss, weights, opt_state
+            updated_trainable_weights = interop.call_jax(
+                optax.apply_updates, trainable_weights, updates
+            )
+
+        updated_weights, _ = pytree.tree_unflatten(pytree.tree_structure((updated_trainable_weights, frozen_weights)), pytree.tree_leaves((updated_trainable_weights, frozen_weights)))
+        return loss_val, updated_weights, opt_state
 
     # TODO: apply jax.jit so the user don't have to.
     return step
