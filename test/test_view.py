@@ -90,6 +90,13 @@ class TrainTest(unittest.TestCase):
     self.assertEqual(a.shape, (10,))
     self.assertEqual(a.sum(), 3)
 
+  def test_setitem2(self):
+    a = torch.zeros(16, device="jax")
+    b = torch.zeros(10, device="jax")
+
+    a[:1] = b[:1]
+    self.assertEqual(a[:1], b[:1])
+
   # Test all in-place operations
   def test_add_(self):
     x = torch.zeros((10, 10), device="jax")
