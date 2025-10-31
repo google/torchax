@@ -14,7 +14,7 @@ You can develop directly on a Mac (M1) for most parts. Using the steps in the RE
    conda create --name <your_name> python=3.10
    conda activate <your_name>
    pip install --upgrade "jax[cpu]" torch
-   pip install -r test_requirements.txt
+   pip install -r test-requirements.txt
    pip install -e .
    pytest test
 ```
