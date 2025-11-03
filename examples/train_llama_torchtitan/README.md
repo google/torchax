@@ -26,8 +26,8 @@ pip install -r requirements.txt
 pip install .
 
 cd ~
-git clone https://github.com/pytorch/xla.git
-cd xla/experimental/torchax
+git clone https://github.com/google/torchax.git
+cd torchax
 pip install -e .
 ```
 
