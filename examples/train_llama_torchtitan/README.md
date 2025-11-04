@@ -14,10 +14,15 @@ the same with gSPMD.
 
 ## Install dependencies
 
+Ensure you are using python 3.11 or above by checking `python --version`.
+
+Then install dependencies:
+
 ```bash
 pip install jax[tpu] -f https://storage.googleapis.com/jax-releases/libtpu_releases.html
-pip install optax fire tensorflow tensorboard-plugin-profile
+pip install optax fire flax triton 
 pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+pip install tensorflow tensorboard-plugin-profile 
 
 cd ~
 git clone https://github.com/pytorch/torchtitan.git
@@ -26,8 +31,8 @@ pip install -r requirements.txt
 pip install .
 
 cd ~
-git clone https://github.com/pytorch/xla.git
-cd xla/experimental/torchax
+git clone https://github.com/google/torchax.git
+cd torchax
 pip install -e .
 ```
 
@@ -39,7 +44,7 @@ NOTE: these flags are copied from https://github.com/AI-Hypercomputer/maxtext/bl
 Tested locally on v6e-8 doesnt seems to make a difference.
 
 ```bash
-cd ~/xla/experimental/torchax/examples/train_llama_torchtitan
+cd ~/torchax/examples/train_llama_torchtitan
 python train_llama.py --seqlen=8192
 ```
 

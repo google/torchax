@@ -35,8 +35,8 @@ from jax.experimental import mesh_utils
 from jax.sharding import NamedSharding
 import optax
 
-from torchtitan.models.llama import llama3_configs
-from torchtitan.models.llama import model as titan
+from torchtitan.models.llama3 import llama3_args 
+from torchtitan.models.llama3.model import model as titan
 
 P = jax.sharding.PartitionSpec
 
@@ -291,7 +291,7 @@ def main(
   env.config.shmap_flash_attention = True
   env._mesh = mesh  # this is the mesh used by flash attention pallas kernel
 
-  args = llama3_configs[model_type]
+  args = llama3_args[model_type]
   # Note: torchtitan's upstream config did not specify this value
   args.vocab_size = 128256
   args.max_seq_len = seqlen
@@ -387,7 +387,7 @@ class TransfomerWithScan(torch.nn.Module):
     # for layer in self.layers.values():
     #     h = layer(h, self.freqs_cis)
 
-    h = self.layers(h, self.freqs_cis)
+    h = self.layers(h, self.freqs_cis, None)
 
     h = self.norm(h) if self.norm else h
     output = self.output(h) if self.output else h

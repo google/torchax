@@ -38,8 +38,6 @@ def tpu_splash_attention(
     decoder_segment_ids = splash_attention_kernel.SegmentIds(
         decoder_segment_ids, decoder_segment_ids)
 
-  print('HERE', locals())
-
   global_block_q = 1024
   global_block_kv = 512
   global_block_kv_compute = 512

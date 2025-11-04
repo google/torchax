@@ -716,13 +716,14 @@ class Environment(contextlib.ContextDecorator):
         lambda x: mappings.t2j(x, self.config.use_dlpack_for_data_conversion),
         args)
 
-  def override_op_definition(self, op_to_override, op_impl):
+  def override_op_definition(self, op_to_override, op_impl, is_view_op=False):
     self._ops[op_to_override] = ops_registry.Operator(
         op_to_override,
         op_impl,
         is_jax_function=False,
         is_user_defined=True,
         needs_env=False,
+        is_view_op=is_view_op,
     )
 
   @contextlib.contextmanager
