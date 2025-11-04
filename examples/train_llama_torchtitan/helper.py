@@ -44,8 +44,8 @@ def compile_step_func(step, weights, buffers, opt_state, args, label, mesh):
   step_compiled = lowered.compile()
   end = time.perf_counter()
   print('End compiling', end - start)
-  compile_time = end - start
   for co in step_compiled.cost_analysis():
-    print('Flops', co['flops'])
-    print('GB accessed', co['bytes accessed'] / 1e9)
+    print('Cost analysis:', co)
+    # print('Flops', co['flops'])
+    # print('GB accessed', co['bytes accessed'] / 1e9)
   return interop.torch_view(step_compiled)
