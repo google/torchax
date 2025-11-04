@@ -13,3 +13,4 @@ nbconvert
 pandas
 matplotlib
 tensorboard
+pytest-reraise

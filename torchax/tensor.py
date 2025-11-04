@@ -371,13 +371,15 @@ class Environment(contextlib.ContextDecorator):
 
     _prng_key = jax.random.key(torch.initial_seed() % (1 << 63))
     self._property = threading.local()
-    self._property.content = [
-        RuntimeProperty(
-            mesh=_mesh, prng=_prng_key, autocast_dtype=autocast_dtype)
-    ]
+    self._initial_content = RuntimeProperty(
+        mesh=_mesh, prng=_prng_key, autocast_dtype=autocast_dtype)
 
   @property
   def param(self):
+    if not hasattr(self._property, 'content'):
+      self._property.content = [
+        self._initial_content
+      ]
     return self._property.content[-1]
 
   def manual_seed(self, key):
