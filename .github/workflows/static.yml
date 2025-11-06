@@ -40,6 +40,12 @@ jobs:
       - name: Install dependencies
         working-directory: docs
         run: |
+          pip install --upgrade pip
+          # note: installing torch and torchvision together ensures their version compatibility
+          pip install torch==2.8.0 torchvision --index-url https://download.pytorch.org/whl/cpu
+          pip install jupyter nbconvert pandas matplotlib
+          pip install -r test-requirements.txt
+          pip install -e .[cpu]
           pip install mkdocs mkdocs-material mkdocs-rtd-dropdown mkdocs-jupyter
           mkdocs build
       - name: Generate notebooks
