@@ -22,7 +22,7 @@ from torch.utils import _pytree as pytree
 from torchax import tensor
 from contextlib import contextmanager
 
-__version__ = "0.0.8"
+__version__ = "0.0.9"
 VERSION = __version__
 
 # the "fast path" uses some sparse tensor thingies that currently we
