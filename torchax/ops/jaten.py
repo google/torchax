@@ -1407,7 +1407,7 @@ def max_pool(
             return jnp.where(which, ai, bi), jnp.where(which, av, bv)
 
         indices, y = jax.lax.reduce_window(
-            (indices, inputs),
+            (indices, jax.lax.stop_gradient(inputs)),
             (0, init_val),
             reduce_fn,
             dims,
