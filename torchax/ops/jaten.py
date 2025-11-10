@@ -1385,28 +1385,29 @@ def max_pool(
         init_val = -jnp.inf
         inputs = inputs.astype(jnp.array(init_val).dtype)
 
-    if not with_index:
-        y = jax.lax.reduce_window(
-            inputs,
-            init_val,
-            jax.lax.max,
-            dims,
-            strides,
-            padding,
-            window_dilation=dilation,
-        )
-        if is_single_input:
-            y = jnp.squeeze(y, axis=0)
-        return y.astype(return_dtype)
-    else:
+    y = jax.lax.reduce_window(
+        inputs,
+        init_val,
+        jax.lax.max,
+        dims,
+        strides,
+        padding,
+        window_dilation=dilation,
+    )
 
+    if is_single_input:
+        y = jnp.squeeze(y, axis=0)
+
+    y = y.astype(return_dtype)
+
+    if with_index:
         def reduce_fn(a, b):
             ai, av = a
             bi, bv = b
             which = av >= bv  # torch breaks ties in favor of later indices
             return jnp.where(which, ai, bi), jnp.where(which, av, bv)
 
-        indices, y = jax.lax.reduce_window(
+        indices, _ = jax.lax.reduce_window(
             (indices, jax.lax.stop_gradient(inputs)),
             (0, init_val),
             reduce_fn,
@@ -1417,9 +1418,9 @@ def max_pool(
         )
         if is_single_input:
             indices = jnp.squeeze(indices, axis=0)
-            y = jnp.squeeze(y, axis=0)
-        y = y.astype(return_dtype)
         return y, indices
+    else:
+        return y
 
 
 @op(torch.ops.aten.max_pool2d_with_indices)
