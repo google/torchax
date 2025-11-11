@@ -520,8 +520,10 @@ def _aten_div(x, y, rounding_mode=""):
     if _is_int(x) and _is_int(y):
         res_dtype = jnp.dtype("float32")
 
-    if isinstance(x, float) or isinstance(y, float):
-        res_dtype = new_dtype = mappings.t2j_dtype(torch.get_default_dtype())
+    if isinstance(x, float):
+        res_dtype = _torch_binary_scalar_type(x, y)
+    elif isinstance(y, float):
+        res_dtype = _torch_binary_scalar_type(y, x)
 
     if rounding_mode == "floor":
         res = jnp.floor_divide(x, y)
