@@ -48,6 +48,10 @@ cd ~/torchax/examples/train_llama_torchtitan
 python train_llama.py --seqlen=8192
 ```
 
+llama-3 8B training on TPU v6e-4 leads to following performance number:
+- throughput: ~ 5000 tokens / second / chip
+- MFU: ~27%
+
 ## Detailed Code walkthrough:
 
 Below is the copy & paste of `train_llama.py` and annotated with what they do:

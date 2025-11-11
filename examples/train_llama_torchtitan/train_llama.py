@@ -151,7 +151,7 @@ class Trainer:
     self.x_sharding = jax.sharding.NamedSharding(self.mesh, P('fsdp'))
     self.replicated = jax.sharding.NamedSharding(self.mesh, P())
 
-  def fit(self, model, loss_fn, data_loader):
+  def fit(self, model, loss_fn, data_loader, train_steps=25):
     xla_env = torchax.default_env()
     jax.config.update('jax_enable_x64', False)
     xla_env._mesh = self.mesh
@@ -179,6 +179,13 @@ class Trainer:
         remat_policy=jax.checkpoint_policies.offload_dot_with_no_batch_dims(
             'device', 'pinned_host'))
 
+
+    # Metrics tracking
+    total_tokens_after_warmup = 0
+    total_time_after_warmup = 0
+    avg_throughput = 0.0
+    warmup_steps = 2
+
     print('Begining training')
     s = time.perf_counter()
     jax.profiler.start_trace('/tmp/tensorboard')
@@ -186,6 +193,10 @@ class Trainer:
     min_loop_time = 10000
     for i, item in enumerate(data_loader):
       inputs, labels = item
+
+      current_batch_size, current_seq_len = inputs.shape[0], inputs.shape[1]
+      tokens_this_step = current_batch_size * current_seq_len
+
       # Move them to jax device
       inputs = inputs.to('jax')
       labels = labels.to('jax')
@@ -209,13 +220,26 @@ class Trainer:
       torchax.interop.call_jax(jax.block_until_ready,
                                (loss, jittable_mod.params))
       step_end = time.perf_counter()
-      print(i, 'loss', loss, 'step latency: ', step_end - step_start)
       loop_time = step_end - step_start
+      current_throughput = tokens_this_step / loop_time
+      print(
+          f'Step {i + 1}/{train_steps} | Loss: {loss.item():.4f} | Throughput:'
+          f' {current_throughput:.2f} tokens/sec',
+      )
       min_loop_time = min(min_loop_time, loop_time)
       print('======')
-      if i >= 3:
+
+      if i >= warmup_steps:
+        total_tokens_after_warmup += tokens_this_step
+        total_time_after_warmup += loop_time
+        avg_throughput = total_tokens_after_warmup / total_time_after_warmup
+
+      if i >= train_steps - 1:
         break
     jax.profiler.stop_trace()
+
+    print(f"\nThroughput (avg): {avg_throughput:.2f} tokens/s")
+
     return min_loop_time
 
 
@@ -272,6 +296,7 @@ def main(
     override_num_layers=-1,
     use_scan=True,
     tp_parallelism=1,
+    train_steps=25,
 ):
   torchax.enable_globally()
   torchax.enable_performance_mode()
@@ -323,7 +348,7 @@ def main(
       jax.device_put, replicated)
   gpt.load_state_dict(state_dict, assign=True)
 
-  train_loader = fake_dataloader(10, seqlen, batch_size)
+  train_loader = fake_dataloader(train_steps, seqlen, batch_size)
 
   # NOTE: overriding attention to capture mesh and sharding info
   partition = P('fsdp', 'tp', None, None)
