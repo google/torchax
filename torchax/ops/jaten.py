@@ -73,6 +73,16 @@ def _aten_unsafe_view(x, shape):
     return jnp.reshape(x, shape)
 
 
+def _run_binary_pointwise_operator(op, x, y):
+  if isinstance(x, float):
+      dtype = _torch_binary_scalar_type(x, y)
+      x = jnp.array(x, dtype=dtype)
+  if isinstance(y, float):
+      dtype = _torch_binary_scalar_type(y, x)
+      y = jnp.array(y, dtype=dtype)
+  return op(x, y)
+
+
 @op(torch.ops.aten.add.Tensor)
 @op(torch.ops.aten.add.Scalar)
 def _aten_add(x, y, *, alpha=1):
@@ -80,11 +90,7 @@ def _aten_add(x, y, *, alpha=1):
 
     assert x.dtype == y.dtype, (x.dtype, y.dtype)
     """
-    res = x + y * alpha
-    if isinstance(x, float) or isinstance(y, float):
-        new_dtype = mappings.t2j_dtype(torch.get_default_dtype())
-        res = res.astype(new_dtype)
-    return res
+    return _run_binary_pointwise_operator(lambda x, y: x + y, x, y * alpha)
 
 
 @op(
@@ -308,13 +314,7 @@ def _aten_searchsorted(sorted_sequence, values):
 @op(torch.ops.aten.sub.Tensor)
 @op(torch.ops.aten.sub.Scalar)
 def _aten_sub(x, y, alpha=1):
-    if isinstance(x, float):
-        dtype = _torch_binary_scalar_type(x, y)
-        x = jnp.array(x, dtype=dtype)
-    if isinstance(y, float):
-        dtype = _torch_binary_scalar_type(y, x)
-        y = jnp.array(y, dtype=dtype)
-    return x - y * alpha
+  return _run_binary_pointwise_operator(lambda x, y: x - y, x, y * alpha)
 
 
 @op(torch.ops.aten.numpy_T)
@@ -339,17 +339,7 @@ def _aten_mm(x, y):
 
 @op(torch.ops.aten.mul.Tensor, torch.ops.aten.mul.Scalar)
 def _aten_mul(x, y):
-    new_dtype = mappings.t2j_dtype(torch.get_default_dtype())
-    res = x * y
-    if isinstance(x, float) or isinstance(y, float):
-        res = res.astype(new_dtype)
-    else:
-        if (not isinstance(x, int)) and (not isinstance(y, int)):
-            if x.dtype == np.dtype(np.float64) or y.dtype == np.dtype(
-                np.float64
-            ):
-                res = res.astype(new_dtype)
-    return res
+    return _run_binary_pointwise_operator(lambda x, y: x * y, x, y)
 
 
 @op(torch.ops.aten.silu)
@@ -570,19 +560,19 @@ def _aten_bmm(x, y):
 @functools.partial(jax.custom_jvp, nondiff_argnums=(2, 3, 4))
 def _disable_pad_idx_grad_embedding_impl(a, w, padding_idx, scale_grad_by_freq, sparse):
   """
-  Forward pass: same as the original one but with the custom jvp decorator. 
+  Forward pass: same as the original one but with the custom jvp decorator.
   It assumes pytorch already sets the embedding tensor padding row to zeros by this moment.
   """
-  output_embeds = jnp.take(a, w, axis=0)  
+  output_embeds = jnp.take(a, w, axis=0)
   return output_embeds
 
 @_disable_pad_idx_grad_embedding_impl.defjvp
 def _embedding_jvp(padding_idx, scale_grad_by_freq, sparse, primals, tangents):
-  """Custom JVP rule for embedding to handle padding_idx gradients."""  
+  """Custom JVP rule for embedding to handle padding_idx gradients."""
   a, w = primals
   a_dot, _w_dot = tangents
 
-  y = _disable_pad_idx_grad_embedding_impl(a, w, padding_idx, scale_grad_by_freq, sparse)    
+  y = _disable_pad_idx_grad_embedding_impl(a, w, padding_idx, scale_grad_by_freq, sparse)
   a_dot = a_dot.at[padding_idx].set(0.0)
   y_dot = jnp.take(a_dot, w, axis=0)
   return y, y_dot
@@ -593,7 +583,7 @@ def _embedding_jvp(padding_idx, scale_grad_by_freq, sparse, primals, tangents):
 # embedding(Tensor weight, Tensor indices, SymInt padding_idx=-1, bool scale_grad_by_freq=False, bool sparse=False)
 def _aten_embedding(
     a, w, padding_idx=-1, scale_grad_by_freq=False, sparse=False
-):    
+):
     if padding_idx == -1:
         return jnp.take(a, w, axis=0)
     return _disable_pad_idx_grad_embedding_impl(a, w, padding_idx, scale_grad_by_freq, sparse)
