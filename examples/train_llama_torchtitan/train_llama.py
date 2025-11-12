@@ -307,7 +307,7 @@ def main(
   mesh = jax.make_mesh((fsdp, tp_parallelism), ('fsdp', 'tp'))
   if use_scan:
     # using scan the individial weights will have shape (num_layers, w, h)
-    sharding_map = sharding_map_scan_fsdp
+    sharding_map = sharding_map_scan
   else:
     sharding_map = sharding_map_original
 
