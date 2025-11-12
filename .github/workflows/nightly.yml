@@ -1,0 +1,45 @@
+name: Nightly Publish to PyPI
+
+on:
+  schedule:
+    # Runs at 10:00 AM UTC every day == 2am PST
+    - cron: '0 10 * * *'
+  # Allows you to click "Run workflow" manually in GitHub UI for testing
+  workflow_dispatch:
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+    permissions:
+      # IMPORTANT: Required for PyPI Trusted Publishing (passwordless)
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install build dependencies
+        run: pip install build
+
+      - name: Patch version for Nightly
+        run: |
+          python scripts/update_to_nightly_version.py
+
+          # Verify the change (Debugging)
+          grep "__version__" torchax/__init__.py
+
+      - name: Build Wheel and Sdist
+        run: python -m build --wheel
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        # Note: We are NOT providing a password here because we will use Trusted Publishing.
+        # If you must use a token, uncomment the lines below:
+        # with:
+        #   password: ${{ secrets.PYPI_API_TOKEN }}
