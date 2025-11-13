@@ -38,7 +38,6 @@ jobs:
       - name: Setup Pages
         uses: actions/configure-pages@v5
       - name: Install dependencies
-        working-directory: docs
         run: |
           pip install --upgrade pip
           # note: installing torch and torchvision together ensures their version compatibility
@@ -47,6 +46,9 @@ jobs:
           pip install -r test-requirements.txt
           pip install -e .[cpu]
           pip install mkdocs mkdocs-material mkdocs-rtd-dropdown mkdocs-jupyter
+      - name: build docs
+        working-directory: docs
+        run: |
           mkdocs build
       - name: Generate notebooks
         working-directory: docs
