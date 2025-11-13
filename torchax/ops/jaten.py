@@ -662,7 +662,7 @@ def _aten__embedding_bag(
         offsets_np = np.array(offsets)
     else:
         offsets_np = offsets
-    offset2bag = np.zeros(indices.shape[0], dtype=np.int64)
+    offset2bag = jnp.zeros(indices.shape[0], dtype=jnp.int64)
     bag_size = np.zeros(offsets_np.shape[0], dtype=np.int64)
     max_indices = jnp.full_like(indices, -1)
 
