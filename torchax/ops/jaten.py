@@ -662,16 +662,21 @@ def _aten__embedding_bag(
         offsets_np = np.array(offsets)
     else:
         offsets_np = offsets
+        
+    num_bags = offsets_np.shape[0]
+    embedding_dim = embedded.shape[-1]
+    output_array = jnp.zeros((num_bags, embedding_dim), dtype=embedded.dtype)
+    
     offset2bag = np.zeros(indices.shape[0], dtype=np.int64)
-    bag_size = np.zeros(offsets_np.shape[0], dtype=np.int64)
+    bag_size = np.zeros(num_bags, dtype=np.int64)
     max_indices = jnp.full_like(indices, -1)
 
-    for bag in range(offsets_np.shape[0]):
+    for bag in range(num_bags):
         start = int(offsets_np[bag])
 
         end = int(
             indices.shape[0]
-            if bag + 1 == offsets_np.shape[0]
+            if bag + 1 == num_bags
             else offsets_np[bag + 1]
         )
         bag_size[bag] = end - start
@@ -687,13 +692,16 @@ def _aten__embedding_bag(
                 max_indices = max_indices.at[start:end].set(
                     jnp.argmax(embedded[start:end], axis=0)
                 )
+            else:
+                raise ValueError(f"mode can only be 0 (sum), 1 (mean) or 2 (max) but got {mode=}")
+            output_array = output_array.at[bag].set(output_bag)
 
     # The original code returned offset2bag, bag_size, and max_indices as numpy arrays.
     # Converting them to JAX arrays for consistency.
     offset2bag = jnp.array(offset2bag)
     bag_size = jnp.array(bag_size)
 
-    return output_bag, offset2bag, bag_size, max_indices
+    return output_array, offset2bag, bag_size, max_indices
 
 
 @op(torch.ops.aten.rsqrt)
