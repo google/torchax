@@ -263,6 +263,33 @@ def _process_sharding_name(name):
       tokens[i] = "*"
   return ".".join(tokens)
 
+def _make_weight_shard(weight_meta, slice_index):
+    # 1. Determine the specific shape for this shard
+    shard_meta = weight_meta[slice_index]
+    print(f".... working on shard at index={slice_index} with shape={shard_meta.shape}")
+
+    # 2. Deterministic Seeding:
+    # Generate a unique random key based on the slice_index.
+    # This ensures every device initializes with different noise (or same if desired).
+    # Note: Converting slice_index to a stable hash integer for seeding.
+    seed = hash(tuple((s.start, s.stop, s.step) for s in slice_index)) % (2**31 - 1)
+    key = jax.random.PRNGKey(seed)
+
+    # 3. Handle Dtype Mapping (Torch -> JAX)
+    # Ensure we allocate directly in bfloat16 if the model is bfloat16
+    dtype_map = {
+      torch.bfloat16: jnp.bfloat16,
+        torch.float16: jnp.float16,
+        torch.float32: jnp.float32,
+        torch.complex64: jnp.complex64, 
+        torch.complex128: jnp.complex128,
+    }
+    jax_dtype = dtype_map.get(shard_meta.dtype, jnp.bfloat16)
+
+    # 4. Generate directly on the device using JAX
+    # This allocates ONLY the memory needed for the shard, directly on XLA/TPU
+    return jax.random.normal(key, shard_meta.shape, dtype=jax_dtype)
+
 
 def create_sharded_weights(model, mesh, sharding_map):
   res = {}
@@ -273,13 +300,14 @@ def create_sharded_weights(model, mesh, sharding_map):
       print('Skipping weight:', name)
       continue
     sharding = NamedSharding(mesh, P(*sharding_spec))
-    with jax.default_device(jax.devices('cpu')[0]):
-      weight_torch = torch.randn(weight_meta.shape, dtype=weight_meta.dtype)
-      weight_jax = torchax.default_env().to_xla(weight_torch).jax()
-    #print(name, weight.shape, weight.dtype)
+    print(f"Initializing weight {name} w shape={weight_meta.shape} dtype={weight_meta.dtype} sharding={sharding}....")
     res[name] = env.j2t_iso(
-        jax.make_array_from_callback(weight_jax.shape, sharding,
-                                     lambda a: weight_jax[a]))
+            jax.make_array_from_callback(
+                weight_meta.shape,
+                sharding,
+                functools.partial(_make_weight_shard, weight_meta),
+            )
+        )
   return res
 
 
@@ -329,6 +357,7 @@ def main(
   torch.set_default_dtype(torch.bfloat16)
   with torch.device('meta'):
     gpt = titan.Transformer(args)
+  print(f'Model initialized with {sum(p.numel() for p in gpt.parameters())/1e9:.2f} B parameters.')
 
   with torch.device('cpu'):
     # need actual value for freqs_cis
