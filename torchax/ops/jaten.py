@@ -675,7 +675,7 @@ def _aten__embedding_bag(
             else offsets_np[bag + 1]
         )
         bag_size[bag] = end - start
-        offset2bag = offset2bag.at[start:end].set(bag)
+        offset2bag[start:end] = bag
 
         if end - start > 0:
             if mode == 0:
