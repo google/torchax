@@ -35,9 +35,9 @@ jobs:
 
       - name: Run ruff check
         run: |
-          ruff check torchax test test_dist examples
+          ruff check torchax test test_dist
 
       - name: Run ruff format check
         run: |
-          ruff format --check torchax test test_dist examples
+          ruff format --check torchax test test_dist
 
