@@ -15,20 +15,20 @@
 import collections
 import copy
 import functools
-import torch
-from inspect import signature
 from functools import wraps
-from torch.nn.utils import stateless as torch_stateless
+from inspect import signature
+
 import jax
 import jax.numpy as jnp
+import torch
 from jax import tree_util as pytree
 from jax.experimental.shard_map import shard_map
-from torchax import tensor
-from torchax import util
-from torchax.ops import mappings
-import torchax
+from torch.nn.utils import stateless as torch_stateless
 
-from torchax.types import JaxValue, TorchValue, JaxCallable, TorchCallable
+import torchax
+from torchax import tensor, util
+from torchax.ops import mappings
+from torchax.types import JaxCallable, JaxValue, TorchCallable, TorchValue
 
 
 def extract_all_buffers(m: torch.nn.Module):
@@ -39,7 +39,7 @@ def extract_all_buffers(m: torch.nn.Module):
     for k in dir(module):
       try:
         v = getattr(module, k)
-      except:
+      except Exception:
         continue
       qual_name = prefix + k
       if isinstance(v, torch.nn.parameter.Parameter) and v.requires_grad:
@@ -47,14 +47,13 @@ def extract_all_buffers(m: torch.nn.Module):
       elif isinstance(v, torch.Tensor):
         buffers[qual_name] = v
     for name, child in module.named_children():
-      extract_one(child, prefix + name + '.')
+      extract_one(child, prefix + name + ".")
 
-  extract_one(m, '')
+  extract_one(m, "")
   return params, buffers
 
 
 def set_all_buffers(m, params, buffers):
-
   def set_one(module, prefix):
     for k in dir(module):
       qual_name = prefix + k
@@ -64,17 +63,15 @@ def set_all_buffers(m, params, buffers):
         print(k, potential_v)
         setattr(module, k, torch.nn.Parameter(potential_v))
     for name, child in module.named_children():
-      set_one(child, prefix + name + '.')
+      set_one(child, prefix + name + ".")
 
-  set_one(m, '')
+  set_one(m, "")
 
 
 class JittableModule(torch.nn.Module):
-
-  def __init__(self,
-               m: torch.nn.Module,
-               extra_jit_args={},
-               dedup_parameters=True):
+  def __init__(self, m: torch.nn.Module, extra_jit_args=None, dedup_parameters=True):
+    if extra_jit_args is None:
+      extra_jit_args = {}
     super().__init__()
     self.params, self.buffers = extract_all_buffers(m)
     self._model = m
@@ -119,7 +116,7 @@ class JittableModule(torch.nn.Module):
     else:
       if not callable(method_or_name):
         raise TypeError(
-            f"method_or_name should be a callable or a string, got {type(method_or_name)}"
+          f"method_or_name should be a callable or a string, got {type(method_or_name)}"
         )
       method = method_or_name
       args = (self._model,) + args
@@ -130,8 +127,8 @@ class JittableModule(torch.nn.Module):
   def jittable_call(self, method_name: str, *args, **kwargs):
     if method_name not in self._jitted:
       jitted = jax_jit(
-          functools.partial(self.functional_call, method_name),
-          kwargs_for_jax_jit=self._extra_jit_args,
+        functools.partial(self.functional_call, method_name),
+        kwargs_for_jax_jit=self._extra_jit_args,
       )
 
       def jitted_forward(*args, **kwargs):
@@ -141,10 +138,10 @@ class JittableModule(torch.nn.Module):
     return self._jitted[method_name](*args, **kwargs)
 
   def forward(self, *args, **kwargs):
-    return self.jittable_call('forward', *args, **kwargs)
+    return self.jittable_call("forward", *args, **kwargs)
 
   def __getattr__(self, key):
-    if key == '_model':
+    if key == "_model":
       return super().__getattr__(key)
     if key in self._jitted:
       return self._jitted[key]
@@ -152,8 +149,9 @@ class JittableModule(torch.nn.Module):
 
   def make_jitted(self, key):
     jitted = jax_jit(
-        functools.partial(self.functional_call, key),
-        kwargs_for_jax_jit=self._extra_jit_args)
+      functools.partial(self.functional_call, key),
+      kwargs_for_jax_jit=self._extra_jit_args,
+    )
 
     def call(*args, **kwargs):
       return jitted(self.params, self.buffers, *args, **kwargs)
@@ -162,7 +160,6 @@ class JittableModule(torch.nn.Module):
 
 
 class CompileMixin:
-
   def functional_call(self, method, params, buffers, *args, **kwargs):
     kwargs = kwargs or {}
     params_copy = copy.copy(params)
@@ -172,24 +169,23 @@ class CompileMixin:
     return res
 
   def jit(self, method):
-    jitted = jax_jit(functools.partial(self.functional_call, method_name))
+    jitted = jax_jit(functools.partial(self.functional_call, method_name))  # noqa: F821
 
     def call(*args, **kwargs):
-      return jitted(self.named_paramters(), self.named_buffers(), *args,
-                    **kwargs)
+      return jitted(self.named_paramters(), self.named_buffers(), *args, **kwargs)
 
     return call
 
 
 def compile_nn_module(m: torch.nn.Module, methods=None):
   if methods is None:
-    methods = ['forward']
+    methods = ["forward"]
 
-  new_parent = type(
-      m.__class__.__name__ + '_with_CompileMixin',
-      (CompileMixin, m.__class__),
+  type(
+    m.__class__.__name__ + "_with_CompileMixin",
+    (CompileMixin, m.__class__),
   )
-  m.__class__ = NewParent
+  m.__class__ = NewParent  # noqa: F821
 
 
 def _torch_view(t: JaxValue) -> TorchValue:
@@ -227,15 +223,17 @@ def _jax_view(t: TorchValue) -> JaxValue:
 jax_view = functools.partial(pytree.tree_map, _jax_view)
 
 
-def call_jax(jax_func: JaxCallable, *args: TorchValue,
-             **kwargs: TorchValue) -> TorchValue:
+def call_jax(
+  jax_func: JaxCallable, *args: TorchValue, **kwargs: TorchValue
+) -> TorchValue:
   args, kwargs = jax_view((args, kwargs))
   res: JaxValue = jax_func(*args, **kwargs)
   return torch_view(res)
 
 
-def call_torch(torch_func: TorchCallable, *args: JaxValue,
-               **kwargs: JaxValue) -> JaxValue:
+def call_torch(
+  torch_func: TorchCallable, *args: JaxValue, **kwargs: JaxValue
+) -> JaxValue:
   args, kwargs = torch_view((args, kwargs))
   with torchax.default_env():
     res: TorchValue = torch_func(*args, **kwargs)
@@ -245,10 +243,10 @@ def call_torch(torch_func: TorchCallable, *args: JaxValue,
 def j2t_autograd(fn, call_jax=call_jax):
   """Given a JAX function, returns a PyTorch autograd function implemented with `jax.vjp(fn)`.
 
-    It wraps `fn` with `jax.vjp` to compute both the output and residuals (intermediate
-    activations). The wrapped function is then run via `call_jax` and integrated into
-    the PyTorch autograd framework by saving the residuals into the context object.
-    """
+  It wraps `fn` with `jax.vjp` to compute both the output and residuals (intermediate
+  activations). The wrapped function is then run via `call_jax` and integrated into
+  the PyTorch autograd framework by saving the residuals into the context object.
+  """
 
   # NOTE(qihqi): This function cannot be inlined from the callsite
   #  Becuase if it does, then it won't hit the compilation cache for
@@ -261,7 +259,7 @@ def j2t_autograd(fn, call_jax=call_jax):
     primals should be a tuple (args, kwargs).
     """
     import jax
-    from jax.tree_util import tree_flatten, tree_unflatten
+    from jax.tree_util import tree_unflatten
 
     def fn_wrapper(*tensors):
       # Reconstruct the original args and kwargs
@@ -277,6 +275,7 @@ def j2t_autograd(fn, call_jax=call_jax):
     Unflattening `saved_tensors` with `vjp_spec` should restore the original vjp function.
     """
     from jax.tree_util import tree_unflatten
+
     fun_vjp = tree_unflatten(vjp_spec, saved_tensors)
     return fun_vjp(grad_out)
 
@@ -285,12 +284,11 @@ def j2t_autograd(fn, call_jax=call_jax):
     from jax.tree_util import tree_flatten
 
     class JaxFun(torch.autograd.Function):
-
       @staticmethod
       def forward(ctx, tree_def, *flat_args_kwargs):
-
-        tensors, other = util.partition(flat_args_kwargs,
-                                        lambda x: isinstance(x, torch.Tensor))
+        tensors, other = util.partition(
+          flat_args_kwargs, lambda x: isinstance(x, torch.Tensor)
+        )
         # We want the arguments that don't require grads to be closured?
 
         y, fun_vjp = call_jax(_jax_forward, fn, other, tree_def, tensors)
@@ -308,8 +306,9 @@ def j2t_autograd(fn, call_jax=call_jax):
         assert len(grad_out) > 0
         grad_out = grad_out if len(grad_out) > 1 else grad_out[0]
 
-        input_grads_structured = call_jax(_jax_backward, ctx.vjp_spec,
-                                          ctx.saved_tensors, grad_out)
+        input_grads_structured = call_jax(
+          _jax_backward, ctx.vjp_spec, ctx.saved_tensors, grad_out
+        )
 
         # Construct the gradient tuple to be returned.
         # It needs to match the inputs to forward: (tree_def, *flat_inputs)
@@ -318,7 +317,8 @@ def j2t_autograd(fn, call_jax=call_jax):
         # We need to put a None for inputs that did not require gradients.
         final_grads = [None]
         for needs_grad, grad in zip(
-            ctx.needs_input_grad[1:], input_grads_structured, strict=True):
+          ctx.needs_input_grad[1:], input_grads_structured, strict=True
+        ):
           final_grads.append(grad if needs_grad else None)
 
         return tuple(final_grads)
@@ -343,27 +343,27 @@ def wrap_jax_jit(torch_function, jax_jit_func=jax.jit, kwargs_for_jax=None):
   return torch_view(jitted)
 
 
-def jax_jit(torch_function,
-            kwargs_for_jax_jit=None,
-            fix_for_buffer_donation=False):
+def jax_jit(torch_function, kwargs_for_jax_jit=None, fix_for_buffer_donation=False):
   return wrap_jax_jit(
-      torch_function, jax_jit_func=jax.jit, kwargs_for_jax=kwargs_for_jax_jit)
+    torch_function, jax_jit_func=jax.jit, kwargs_for_jax=kwargs_for_jax_jit
+  )
 
 
 def jax_shard_map(torch_function, kwargs_for_jax_shard_map=None):
   return wrap_jax_jit(
-      torch_function,
-      jax_jit_func=shard_map,
-      kwargs_for_jax=kwargs_for_jax_shard_map)
+    torch_function, jax_jit_func=shard_map, kwargs_for_jax=kwargs_for_jax_shard_map
+  )
 
 
 def jax_value_and_grad(torch_function, kwargs_for_value_and_grad=None):
   return wrap_jax_jit(
-      torch_function,
-      jax_jit_func=jax.value_and_grad,
-      kwargs_for_jax=kwargs_for_value_and_grad)
+    torch_function,
+    jax_jit_func=jax.value_and_grad,
+    kwargs_for_jax=kwargs_for_value_and_grad,
+  )
 
 
 def gradient_checkpoint(torch_function, kwargs=None):
   return wrap_jax_jit(
-      torch_function, jax_jit_func=jax.checkpoint, kwargs_for_jax=kwargs)
+    torch_function, jax_jit_func=jax.checkpoint, kwargs_for_jax=kwargs
+  )

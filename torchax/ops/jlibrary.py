@@ -16,12 +16,11 @@
 during export. This includes aten ops, and custom operations.
 """
 
+import jax
 import torch
-import torch.nn as nn
+
 import torchax
 from torchax.ops import jaten
-import jax
-import functools
 
 
 def _jit_composite_impl(composite_name, jaxpr_impl, **jit_args):
@@ -75,9 +74,7 @@ def register_torch_composite(composite_name, impl, *ops, **jit_args):
 
   @jaten.op(*ops)
   def _composite_impl(*args):
-
     class ImplWrapper(torch.nn.Module):
-
       def __init__(self):
         super().__init__()
 
@@ -90,5 +87,8 @@ def register_torch_composite(composite_name, impl, *ops, **jit_args):
     # module once during registration, potentially missing op registrations that
     # come after. I.e. may miss nested abstractions if we build jaxpr AoT.
     state, jfn = torchax.extract_jax(ImplWrapper())
-    jaxpr_impl = lambda *args: jfn(state, tuple([*args]))
+
+    def jaxpr_impl(*args):
+      return jfn(state, (*args,))
+
     return _jit_composite_impl(composite_name, jaxpr_impl, **jit_args)(*args)

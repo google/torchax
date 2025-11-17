@@ -22,21 +22,21 @@ Can also contain decompositions of a torch op in terms of other torch ops.
 """
 
 import functools
-from typing import Any, Callable, List, Tuple
+from collections.abc import Callable
+from typing import Any
 
 import torch
-from torch import Tensor
 import torch._decomp as decomp
-from torch._decomp import decompositions_for_rng
-from torch._decomp import register_decomposition
 import torch._prims_common as utils
+from torch import Tensor
+from torch._decomp import decompositions_for_rng, register_decomposition
 from torch._prims_common.wrappers import out_wrapper
 
 DispatchKey = torch._C.DispatchKey  # type: ignore[attr-defined]
 
 # None of these functions are publicly accessible; get at them
 # from torch._decomps
-__all__: List[str] = []
+__all__: list[str] = []
 
 aten = torch._ops.ops.aten
 
@@ -44,21 +44,21 @@ aten = torch._ops.ops.aten
 def _try_register(op, impl):
   try:
     register_decomposition(op)(impl)
-  except:
+
+  except Exception:
     pass
 
 
 @out_wrapper()
-def _reflection_pad(a: Tensor, padding: Tuple[int, ...]) -> Tensor:
-
+def _reflection_pad(a: Tensor, padding: tuple[int, ...]) -> Tensor:
   def idx(left, middle, right):
     dim_idx = torch.arange(-left, middle + right, device=a.device)
     return middle - 1 - (middle - 1 - dim_idx.abs()).abs()
 
   return _reflection_or_replication_pad(
-      a,
-      padding,
-      idx,
+    a,
+    padding,
+    idx,
   )
 
 
@@ -68,32 +68,32 @@ _try_register(aten.reflection_pad3d, _reflection_pad)
 
 
 @out_wrapper()
-def _replication_pad(a: Tensor, padding: Tuple[int, ...]) -> Tensor:
-
+def _replication_pad(a: Tensor, padding: tuple[int, ...]) -> Tensor:
   def idx(left, middle, right):
     dim_idx = torch.arange(-left, middle + right, device=a.device)
     return torch.clamp(dim_idx, 0, middle - 1)
 
   return _reflection_or_replication_pad(
-      a,
-      padding,
-      idx,
+    a,
+    padding,
+    idx,
   )
 
 
-decomp.global_decomposition_table["post_autograd"][
-    aten.replication_pad2d.default] = _replication_pad
+decomp.global_decomposition_table["post_autograd"][aten.replication_pad2d.default] = (
+  _replication_pad
+)
 
 
 def _reflection_or_replication_pad(
-    a: Tensor,
-    padding: Tuple[int, ...],
-    idx_fn: Callable[[int, int, int], Tensor],
+  a: Tensor,
+  padding: tuple[int, ...],
+  idx_fn: Callable[[int, int, int], Tensor],
 ) -> Tensor:
   dim = len(padding) // 2
   torch._check(
-      a.dim() in (dim + 1, dim + 2),
-      lambda: f"reflection_pad{dim}d requires {dim + 1}D or {dim + 2}D input",
+    a.dim() in (dim + 1, dim + 2),
+    lambda: f"reflection_pad{dim}d requires {dim + 1}D or {dim + 2}D input",
   )
   inp_shape = a.shape[-dim:]
   nc_dim = a.dim() - dim
@@ -103,7 +103,7 @@ def _reflection_or_replication_pad(
 
   result = a
   for i in range(dim):
-    idx: List[Any] = [None] * result.dim()
+    idx: list[Any] = [None] * result.dim()
     idx[i + nc_dim] = idx_fn(padding_left[i], inp_shape[i], padding_right[i])
     result = aten._unsafe_index(result, idx)
 
@@ -158,11 +158,11 @@ def _sum_tensors(ts) -> Tensor:
 
 @register_decomposition(aten.grid_sampler_3d)
 def _grid_sampler_3d(
-    a: torch.Tensor,
-    grid: torch.Tensor,
-    interpolation_mode: int = 0,
-    padding_mode: int = 0,
-    align_corners: bool = False,
+  a: torch.Tensor,
+  grid: torch.Tensor,
+  interpolation_mode: int = 0,
+  padding_mode: int = 0,
+  align_corners: bool = False,
 ) -> Tensor:
   """References: https://github.com/pytorch/pytorch/blob/06a7dc21c1005750598c37f3adbc031183c74de6/torch/_decomp/decompositions.py#L4075
 
@@ -170,11 +170,12 @@ def _grid_sampler_3d(
   """
   _expand_grid = False
   torch._check(
-      interpolation_mode in (0, 1),
-      lambda: f"Invalid interpolation mode {interpolation_mode}",
+    interpolation_mode in (0, 1),
+    lambda: f"Invalid interpolation mode {interpolation_mode}",
   )
   torch._check(
-      padding_mode in (0, 1, 2), lambda: f"Invalid padding mode {padding_mode}")
+    padding_mode in (0, 1, 2), lambda: f"Invalid padding mode {padding_mode}"
+  )
 
   # a is 5D: [B, C, D, H, W]
 
@@ -189,8 +190,7 @@ def _grid_sampler_3d(
   # Reflects coordinates until they fall between low and high (inclusive).
   # The bounds are passed as twice their value so that half-integer values
   # can be represented as ints.
-  def reflect_coordinates(coords: Tensor, twice_low: int,
-                          twice_high: int) -> Tensor:
+  def reflect_coordinates(coords: Tensor, twice_low: int, twice_high: int) -> Tensor:
     if twice_low == twice_high:
       return torch.zeros_like(coords)
     coords_min = twice_low / 2
@@ -198,8 +198,9 @@ def _grid_sampler_3d(
     coords2 = (coords - coords_min).abs()
     extra = torch.fmod(coords2, coords_span)
     flips = (coords2 / coords_span).floor().to(dtype=torch.int8)
-    return torch.where(flips & 1 == 0, extra + coords_min,
-                       coords_span + coords_min - extra)
+    return torch.where(
+      flips & 1 == 0, extra + coords_min, coords_span + coords_min - extra
+    )
 
   def compute_coordinates(coords: Tensor, size: int) -> Tensor:
     if padding_mode == 0:  # Zero
@@ -219,7 +220,7 @@ def _grid_sampler_3d(
 
   N, C, iD, iH, iW = a.shape
   _, oD, oH, oW, three = grid.shape
-  assert three == 3, "Last dim of grid must be 3. got {}".format(three)
+  assert three == 3, f"Last dim of grid must be 3. got {three}"
 
   def in_bounds_cond(xs: Tensor, ys: Tensor, zs) -> Tensor:
     xcheck = torch.logical_and(0 <= xs, xs < iW)
@@ -238,15 +239,16 @@ def _grid_sampler_3d(
     # broadcasting with N_idx, C_idx for the purposes of advanced indexing
     c = C if _expand_grid else 1
     return tuple(
-        torch.where(cond, t, 0).view(N, c, oD, oH, oW) for t in (
-            xs.to(dtype=torch.int64),
-            ys.to(dtype=torch.int64),
-            zs.to(dtype=torch.int64),
-            ws,
-        ))
+      torch.where(cond, t, 0).view(N, c, oD, oH, oW)
+      for t in (
+        xs.to(dtype=torch.int64),
+        ys.to(dtype=torch.int64),
+        zs.to(dtype=torch.int64),
+        ws,
+      )
+    )
 
-  def get_summand(ix: torch.Tensor, iy: torch.Tensor, iz: torch.Tensor,
-                  w) -> Tensor:
+  def get_summand(ix: torch.Tensor, iy: torch.Tensor, iz: torch.Tensor, w) -> Tensor:
     # Perform clipping, index into input tensor and multiply by weight
     idx_x, idx_y, idx_z, w_ = clip(ix, iy, iz, w)
     return a[N_idx, C_idx, idx_z, idx_y, idx_x] * w_
@@ -279,16 +281,18 @@ def _grid_sampler_3d(
     w_seb = (ix - ix_nwf) * (iy - iy_nwf) * (id_ - id_nwf)
 
     return _sum_tensors(
-        get_summand(ix, iy, id_, w) for (ix, iy, id_, w) in (
-            (ix_nwf, iy_nwf, id_nwf, w_nwf),
-            (ix_nef, iy_nef, id_nef, w_nef),
-            (ix_swf, iy_swf, id_swf, w_swf),
-            (ix_sef, iy_sef, id_sef, w_sef),
-            (ix_nwb, iy_nwb, id_nwb, w_nwb),
-            (ix_neb, iy_neb, id_neb, w_neb),
-            (ix_swb, iy_swb, id_swb, w_swb),
-            (ix_seb, iy_seb, id_seb, w_seb),
-        ))
+      get_summand(ix, iy, id_, w)
+      for (ix, iy, id_, w) in (
+        (ix_nwf, iy_nwf, id_nwf, w_nwf),
+        (ix_nef, iy_nef, id_nef, w_nef),
+        (ix_swf, iy_swf, id_swf, w_swf),
+        (ix_sef, iy_sef, id_sef, w_sef),
+        (ix_nwb, iy_nwb, id_nwb, w_nwb),
+        (ix_neb, iy_neb, id_neb, w_neb),
+        (ix_swb, iy_swb, id_swb, w_swb),
+        (ix_seb, iy_seb, id_seb, w_seb),
+      )
+    )
   else:  # interpolation_mode == 1:  # Nearest
     ix = compute_source_index(x, iW)
     iy = compute_source_index(y, iH)
@@ -301,7 +305,8 @@ def _grid_sampler_3d(
     return get_summand(ix_nearest, iy_nearest, iz_nearest, 1)
 
 
-DECOMPOSITIONS = decomp.get_decompositions([
+DECOMPOSITIONS = decomp.get_decompositions(
+  [
     torch.ops.aten.upsample_bicubic2d,
     torch.ops.aten.upsample_nearest1d,
     torch.ops.aten.upsample_nearest2d,
@@ -782,9 +787,10 @@ DECOMPOSITIONS = decomp.get_decompositions([
     torch.ops.aten.__irshift__.Tensor,
     torch.ops.aten.__irshift__.Scalar,
     torch.ops.aten.__ior__.Tensor,
-])
+  ]
+)
 
 MUTABLE_DECOMPOSITION = [
-    torch.ops.aten.bernoulli_.Tensor,
-    torch.ops.aten.bernoulli_.float,
+  torch.ops.aten.bernoulli_.Tensor,
+  torch.ops.aten.bernoulli_.float,
 ]
