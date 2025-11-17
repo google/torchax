@@ -23,7 +23,6 @@ from torchax.view import View
 
 
 class TrainTest(unittest.TestCase):
-
   def setUp(self):
     torch.manual_seed(0)
     torchax.enable_globally()
@@ -147,10 +146,8 @@ class TrainTest(unittest.TestCase):
     x[0:5, :][:, 0:5].lt_(0.5)
     self.assertEqual(type(x), Tensor)
     self.assertEqual(x.shape, (10, 10))
-    self.assertEqual(x[0:5, 0:5].sum(),
-                     0)  # All False (0) in the modified region
-    self.assertEqual(x[5:, 5:].sum(),
-                     25)  # All True (1) in the unmodified region
+    self.assertEqual(x[0:5, 0:5].sum(), 0)  # All False (0) in the modified region
+    self.assertEqual(x[5:, 5:].sum(), 25)  # All True (1) in the unmodified region
 
   def test_le_(self):
     x = torch.ones((10, 10), device="jax")
@@ -164,8 +161,7 @@ class TrainTest(unittest.TestCase):
     x[0:5, :][:, 0:5].gt_(1)
     self.assertEqual(type(x), Tensor)
     self.assertEqual(x.shape, (10, 10))
-    self.assertEqual(x[0:5, 0:5].sum(),
-                     0)  # All False (0) in the modified region
+    self.assertEqual(x[0:5, 0:5].sum(), 0)  # All False (0) in the modified region
     self.assertEqual(x.sum(), 75)  # Only the unmodified region is True (1)
 
   def test_ge_(self):
@@ -187,8 +183,7 @@ class TrainTest(unittest.TestCase):
     x[0:5, :][:, 0:5].ne_(1)
     self.assertEqual(type(x), Tensor)
     self.assertEqual(x.shape, (10, 10))
-    self.assertEqual(x[0:5, 0:5].sum(),
-                     0)  # All False (0) in the modified region
+    self.assertEqual(x[0:5, 0:5].sum(), 0)  # All False (0) in the modified region
     self.assertEqual(x.sum(), 75)  # Only the unmodified region is True (1)
 
   def test_bernoulli_(self):
@@ -259,8 +254,7 @@ class TrainTest(unittest.TestCase):
     self.assertTrue(torch.allclose(x, x_clone.squeeze()))
 
   def test_sqrt_(self):
-    x = torch.randn((10, 10),
-                    device="jax").abs()  # Use abs to ensure positive values
+    x = torch.randn((10, 10), device="jax").abs()  # Use abs to ensure positive values
     x_copy = x.clone()
     x[0:5, :][:, 0:5].sqrt_()
     self.assertEqual(type(x), Tensor)

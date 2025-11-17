@@ -21,20 +21,25 @@ import jax.numpy as jnp
 import numpy as np
 from . import tensor
 
+
 def _to_jax(pytree):
   def to_jax_array(x):
     if isinstance(x, tensor.Tensor):
-        return x.jax()
+      return x.jax()
     elif isinstance(x, torch.Tensor):
-        return jnp.asarray(x.cpu().numpy())
+      return jnp.asarray(x.cpu().numpy())
     return x
+
   return jax.tree_util.tree_map(to_jax_array, pytree)
 
 
 def _to_torch(pytree):
   return jax.tree_util.tree_map(
     lambda x: torch.from_numpy(np.asarray(x))
-    if isinstance(x, (jnp.ndarray, jax.Array)) else x, pytree)
+    if isinstance(x, (jnp.ndarray, jax.Array))
+    else x,
+    pytree,
+  )
 
 
 def save_checkpoint(state: Dict[str, Any], path: str, step: int):
@@ -76,4 +81,3 @@ def load_checkpoint(path: str) -> Dict[str, Any]:
     return _to_jax(state)
   else:
     raise FileNotFoundError(f"No such file or directory: {path}")
-    

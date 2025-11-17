@@ -20,7 +20,6 @@ from sentencepiece import SentencePieceProcessor
 
 
 class Tokenizer:
-
   def __init__(self, model_path: Optional[str]):
     # Reload tokenizer.
     assert os.path.isfile(model_path), model_path

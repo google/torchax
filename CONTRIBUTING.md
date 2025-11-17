@@ -18,6 +18,15 @@ You can develop directly on a Mac (M1) for most parts. Using the steps in the RE
    pip install -e .
    pytest test
 ```
+### Ruff
+
+```
+# Check formatting (don't modify files)
+ruff format --check torchax test test_dist examples
+
+# Format files (modifies files in place)
+ruff format torchax test test_dist examples
+```
 
 ### VSCode
 

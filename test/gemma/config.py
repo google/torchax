@@ -21,12 +21,14 @@ import torch
 from typing import Optional
 
 # Keep a mapping from dtype strings to the supported torch dtypes.
-_STR_DTYPE_TO_TORCH_DTYPE = immutabledict.immutabledict({
-    'float16': torch.float16,
-    'float': torch.float32,
-    'float32': torch.float32,
-    'bfloat16': torch.bfloat16,
-})
+_STR_DTYPE_TO_TORCH_DTYPE = immutabledict.immutabledict(
+  {
+    "float16": torch.float16,
+    "float": torch.float32,
+    "float32": torch.float32,
+    "bfloat16": torch.bfloat16,
+  }
+)
 
 
 @dataclasses.dataclass
@@ -50,11 +52,11 @@ class GemmaConfig:
   # The epsilon used by the rms normalization layers.
   rms_norm_eps: float = 1e-6
   # The dtype of the weights.
-  dtype: str = 'bfloat16'
+  dtype: str = "bfloat16"
   # Whether a quantized version of the model is used.
   quant: bool = False
   # The path to the model tokenizer.
-  tokenizer: Optional[str] = 'tokenizer/tokenizer.model'
+  tokenizer: Optional[str] = "tokenizer/tokenizer.model"
 
   def get_dtype(self) -> Optional[torch.dtype]:
     """Gets the torch dtype from the config dtype string."""
@@ -67,17 +69,17 @@ def get_config_for_7b() -> GemmaConfig:
 
 def get_config_for_2b() -> GemmaConfig:
   return GemmaConfig(
-      num_hidden_layers=18,
-      num_attention_heads=8,
-      num_key_value_heads=1,
-      hidden_size=2048,
-      intermediate_size=16384)
+    num_hidden_layers=18,
+    num_attention_heads=8,
+    num_key_value_heads=1,
+    hidden_size=2048,
+    intermediate_size=16384,
+  )
 
 
 def get_model_config(variant: str) -> GemmaConfig:
-  if variant == '7b':
+  if variant == "7b":
     return get_config_for_7b()
-  elif variant == '2b':
+  elif variant == "2b":
     return get_config_for_2b()
-  return ValueError(f'Invalid variant {variant}. Supported variants are "2b"'
-                    'and "7b"')
+  return ValueError(f'Invalid variant {variant}. Supported variants are "2b"and "7b"')

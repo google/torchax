@@ -3,7 +3,6 @@ import unittest
 import torchax
 
 
-
 def test_access_config_thread(reraise):
   env = torchax.default_env()
 

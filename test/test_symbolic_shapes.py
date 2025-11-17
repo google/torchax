@@ -19,7 +19,6 @@ from . import base_test_util
 
 
 class AddOne(torch.nn.Module):
-
   def __init__(self):
     super().__init__()
 
@@ -28,7 +27,6 @@ class AddOne(torch.nn.Module):
 
 
 class ConcatAddModel(torch.nn.Module):
-
   def __init__(self):
     super().__init__()
 
@@ -47,8 +45,7 @@ class SymbolicShapeTest(base_test_util.TestCase):
     torch.manual_seed(0)
 
   def test_constraints_min_max(self):
-    """Test a model with basic min/max dimension restrictions
-    """
+    """Test a model with basic min/max dimension restrictions"""
 
     # Arg shapes are a=s0{<=10}, b=s0*2
     model = AddOne()
@@ -57,8 +54,7 @@ class SymbolicShapeTest(base_test_util.TestCase):
     dynamic_shapes = ({0: sym_a},)
 
     with torch.no_grad():
-      exported = torch.export.export(
-          model, args=args, dynamic_shapes=dynamic_shapes)
+      exported = torch.export.export(model, args=args, dynamic_shapes=dynamic_shapes)
     weights, stablehlo = torchax.export.exported_program_to_stablehlo(exported)
     module_str = str(stablehlo.mlir_module())
 
@@ -80,8 +76,7 @@ class SymbolicShapeTest(base_test_util.TestCase):
     dynamic_shapes = ({0: sym_a}, {0: sym_b})
 
     with torch.no_grad():
-      exported = torch.export.export(
-          model, args=args, dynamic_shapes=dynamic_shapes)
+      exported = torch.export.export(model, args=args, dynamic_shapes=dynamic_shapes)
     weights, stablehlo = torchax.export.exported_program_to_stablehlo(exported)
     module_str = str(stablehlo.mlir_module())
 
@@ -103,8 +98,7 @@ class SymbolicShapeTest(base_test_util.TestCase):
     dynamic_shapes = ({0: sym_b},)
 
     with torch.no_grad():
-      exported = torch.export.export(
-          model, args=args, dynamic_shapes=dynamic_shapes)
+      exported = torch.export.export(model, args=args, dynamic_shapes=dynamic_shapes)
     weights, stablehlo = torchax.export.exported_program_to_stablehlo(exported)
     module_str = str(stablehlo.mlir_module())
 

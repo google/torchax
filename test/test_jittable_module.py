@@ -26,9 +26,7 @@ class EvenMoreAwesomeModel(torch.nn.Module):
 
 
 class JittableModuleTest(unittest.TestCase):
-
   def test_isinstance_works(self):
-
     # Export and check for composite operations
     model = MyAwesomeModel()
     jittable_module = interop.JittableModule(model)
@@ -37,7 +35,6 @@ class JittableModuleTest(unittest.TestCase):
     assert isinstance(jittable_module, MyAwesomeModel)
 
   def test_isinstance_does_not_mix(self):
-
     # Export and check for composite operations
     JittableAwesomeModel = interop.JittableModule(MyAwesomeModel())
     JittableMoreAwesomeModel = interop.JittableModule(EvenMoreAwesomeModel())
@@ -49,7 +46,6 @@ class JittableModuleTest(unittest.TestCase):
     assert not isinstance(JittableMoreAwesomeModel, MyAwesomeModel)
 
   def test_functional_call_callable(self):
-
     def outer_function(model, x):
       return x + 1
 
@@ -60,13 +56,12 @@ class JittableModuleTest(unittest.TestCase):
     input_tensor = torch.randn(1, 3, 224, 224)
     expected_output = input_tensor + 1
 
-    output = jittable_module.functional_call(outer_function,
-                                             jittable_module.params,
-                                             jittable_module.buffers,
-                                             input_tensor)
+    output = jittable_module.functional_call(
+      outer_function, jittable_module.params, jittable_module.buffers, input_tensor
+    )
 
     assert torch.equal(output, expected_output)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
   unittest.main()

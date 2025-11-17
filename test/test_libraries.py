@@ -20,6 +20,7 @@ import torchax
 import torchax.export
 from torchax.ops import jaten
 from torchax.ops import jlibrary
+
 # Create a `mylib` library which has a basic SDPA op.
 m = Library("mylib", "DEF")
 m.define("scaled_dot_product_attention(Tensor q, Tensor k, Tensor v) -> Tensor")
@@ -32,12 +33,12 @@ def _mylib_scaled_dot_product_attention(q, k, v):
   k = k.transpose(1, 2)
   v = v.transpose(1, 2)
   y = F.scaled_dot_product_attention(
-      q,
-      k,
-      v,
-      dropout_p=0,
-      is_causal=False,
-      scale=None,
+    q,
+    k,
+    v,
+    dropout_p=0,
+    is_causal=False,
+    scale=None,
   )
   return y.transpose(1, 2)
 
@@ -50,29 +51,28 @@ def _mylib_scaled_dot_product_attention_meta(q, k, v):
 # Register library op as a composite for export using the `@impl` method
 # for a torch decomposition.
 jlibrary.register_torch_composite(
-    "mylib.scaled_dot_product_attention", _mylib_scaled_dot_product_attention,
-    torch.ops.mylib.scaled_dot_product_attention,
-    torch.ops.mylib.scaled_dot_product_attention.default)
+  "mylib.scaled_dot_product_attention",
+  _mylib_scaled_dot_product_attention,
+  torch.ops.mylib.scaled_dot_product_attention,
+  torch.ops.mylib.scaled_dot_product_attention.default,
+)
 
 # Also register ATen softmax as a composite for export in the `mylib` library
 # using the JAX ATen decomposition from `jaten`.
 jlibrary.register_jax_composite(
-    "mylib.softmax",
-    jaten._aten_softmax,
-    torch.ops.aten._softmax,
-    static_argnums=1  # Required by JAX jit
+  "mylib.softmax",
+  jaten._aten_softmax,
+  torch.ops.aten._softmax,
+  static_argnums=1,  # Required by JAX jit
 )
 
 
 class LibraryTest(unittest.TestCase):
-
   def setUp(self):
     torch.manual_seed(0)
 
   def test_basic_sdpa_library(self):
-
     class CustomOpExample(torch.nn.Module):
-
       def forward(self, q, k, v):
         x = torch.ops.mylib.scaled_dot_product_attention(q, k, v)
         x = x + 1
@@ -82,9 +82,9 @@ class LibraryTest(unittest.TestCase):
     model = CustomOpExample()
     arg = torch.rand(32, 8, 128, 64)
     args = (
-        arg,
-        arg,
-        arg,
+      arg,
+      arg,
+      arg,
     )
 
     exported = torch.export.export(model, args=args)
@@ -97,5 +97,5 @@ class LibraryTest(unittest.TestCase):
     self.assertIn("call @mylib.softmax", module_str)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
   unittest.main()
