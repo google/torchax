@@ -233,9 +233,9 @@ class View(torch.Tensor):
   @staticmethod
   def __new__(
     cls,
-    parent: "torchax.Tensor" | "View",
+    parent: "torchax.Tensor" | "View",  # noqa: F821
     view_info: ViewInfo,
-    env: Any,  # noqa: F821
+    env: Any,
   ) -> "View":
     """
     Args:
@@ -254,9 +254,9 @@ class View(torch.Tensor):
 
   def __init__(
     self,
-    parent: "torchax.Tensor" | "View",
+    parent: "torchax.Tensor" | "View",  # noqa: F821
     view_info: ViewInfo,
-    env: Any,  # noqa: F821
+    env: Any,
   ) -> None:
     super().__init__()
     self.parent = parent
