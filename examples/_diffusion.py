@@ -28,19 +28,20 @@ import torch.func
 
 
 class CompiledModule:
-
   def __init__(self, model):
     weights = model.state_dict()
     weights.update(model.named_parameters())
-    self._weights = pytree.tree_map_only(torch.Tensor,
-                                         torchax.tensor.move_to_device, weights)
+    self._weights = pytree.tree_map_only(
+      torch.Tensor, torchax.tensor.move_to_device, weights
+    )
     self._model = model
 
-    self._func_jitted_torch = None  #torch_view(func_mod_jitted)
+    self._func_jitted_torch = None  # torch_view(func_mod_jitted)
 
   def _maybe_move_tensor(self, tensor):
-    if isinstance(
-        tensor, torch.Tensor) and not isinstance(tensor, torchax.tensor.Tensor):
+    if isinstance(tensor, torch.Tensor) and not isinstance(
+      tensor, torchax.tensor.Tensor
+    ):
       return torchax.tensor.move_to_device(tensor)
     return tensor
 
@@ -56,8 +57,7 @@ class CompiledModule:
 
     def f(weights, *args, **kwargs):
       weights, args, kwargs = torchax.tensor.wrap((weights, args, kwargs))
-      with torchax.functions.XLAFunctionMode(), torchax.tensor.XLADispatchMode(
-      ):
+      with torchax.functions.XLAFunctionMode(), torchax.tensor.XLADispatchMode():
         res = torch.func.functional_call(self._model, weights, args, kwargs)
         if isinstance(res, tuple) and len(res) == 1:
           res = res[0]
@@ -88,9 +88,9 @@ def compile_pipe(pipe):
 
 def main():
   pipe = DiffusionPipeline.from_pretrained(
-      # "stabilityai/stable-diffusion-xl-base-0.9",
-      "stabilityai/stable-diffusion-xl-base-1.0",
-      use_safetensors=True,
+    # "stabilityai/stable-diffusion-xl-base-0.9",
+    "stabilityai/stable-diffusion-xl-base-1.0",
+    use_safetensors=True,
   )
   compile_pipe(pipe)
 
@@ -99,10 +99,11 @@ def main():
   resol = 1024
   prompts = ["a photo of an astronaut riding a horse on mars"] * global_bs
   print(
-      f'global batch size {global_bs}',
-      f'inference steps {inference_steps}',
-      f'Image resolution {resol}',
-      flush=True)
+    f"global batch size {global_bs}",
+    f"inference steps {inference_steps}",
+    f"Image resolution {resol}",
+    flush=True,
+  )
 
   iters = 5
   for i in range(iters):
@@ -111,10 +112,10 @@ def main():
     # prompt = prompts[rank]
     start = time()
     image = pipe(
-        prompt, num_inference_steps=inference_steps, height=resol,
-        width=resol).images[0]
-    print(f'Step {i} inference time {time()-start} sec', flush=True)
+      prompt, num_inference_steps=inference_steps, height=resol, width=resol
+    ).images[0]
+    print(f"Step {i} inference time {time() - start} sec", flush=True)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
   main()

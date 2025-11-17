@@ -13,8 +13,9 @@
 # limitations under the License.
 
 import jax
-from jax.sharding import PartitionSpec, NamedSharding
 import torch
+from jax.sharding import NamedSharding, PartitionSpec
+
 import torchax
 from torchax import interop
 
@@ -94,12 +95,13 @@ class SingleAxisSharder:
       `_shard_first_multiple_of`.
     """
     del name
-    sharding = _shard_first_multiple_of(self.axis_name, shapedtype.shape,
-                                        self.axis_size)
+    sharding = _shard_first_multiple_of(
+      self.axis_name, shapedtype.shape, self.axis_size
+    )
     if not self.replicate_unshardable and all(s is None for s in sharding):
       raise AssertionError(
-          f"Unable to find a dim to shard because "
-          f"None of the dims ({shapedtype.shape}) in shape is multiple of {self.axis_size}"
+        f"Unable to find a dim to shard because "
+        f"None of the dims ({shapedtype.shape}) in shape is multiple of {self.axis_size}"
       )
     return sharding
 
@@ -159,15 +161,14 @@ class Mesh:
     self.jax_mesh = jax_mesh
     if sharder is None:
       assert len(self.jax_mesh.axis_names) == 1
-      sharder = SingleAxisSharder(self.jax_mesh.axis_names[0],
-                                  len(self.mesh.device_ids))
+      sharder = SingleAxisSharder(
+        self.jax_mesh.axis_names[0], len(self.mesh.device_ids)
+      )
     self._sharder = sharder
 
-  def initialize_model_sharded(self,
-                               model_class,
-                               init_args,
-                               init_kwargs=None,
-                               override_sharder=None):
+  def initialize_model_sharded(
+    self, model_class, init_args, init_kwargs=None, override_sharder=None
+  ):
     """Initializes a PyTorch model with its parameters sharded across the mesh.
 
     This method orchestrates the initialization of a `torch.nn.Module` such
@@ -208,17 +209,18 @@ class Mesh:
 
     states = model.state_dict()
     output_shards = {
-        name: NamedSharding(self.jax_mesh, sharder(name, tensor))
-        for name, tensor in states.items()
+      name: NamedSharding(self.jax_mesh, sharder(name, tensor))
+      for name, tensor in states.items()
     }
 
     def model_initializer():
-      with torchax.default_env(), torch.device('meta'):
+      with torchax.default_env(), torch.device("meta"):
         model = model_class(*init_args, **init_kwargs)
       return dict(model.state_dict())
 
     jitted = interop.jax_jit(
-        model_initializer, kwargs_for_jax_jit={"out_shardings": output_shards})
+      model_initializer, kwargs_for_jax_jit={"out_shardings": output_shards}
+    )
     weights_dict = jitted()
 
     model.load_state_dict(weights_dict, assign=True)
@@ -228,7 +230,7 @@ class Mesh:
     sharder = override_sharder or self._sharder
     states = model.state_dict()
     output_shards = {
-        name: NamedSharding(self.jax_mesh, sharder(name, tensor))
-        for name, tensor in states.items()
+      name: NamedSharding(self.jax_mesh, sharder(name, tensor))
+      for name, tensor in states.items()
     }
     model.load_state_dict(output_shards, assign=True)

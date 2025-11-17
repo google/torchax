@@ -12,11 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 
-def partition(original: list[Any],
-              func: Callable[[Any], bool]) -> tuple[list[Any], list[Any]]:
+def partition(
+  original: list[Any], func: Callable[[Any], bool]
+) -> tuple[list[Any], list[Any]]:
   """Partitions elements into two parallel lists based on a predicate function.
 
   Iterates through the 'original' list, applying 'func' to each element 'a'.
@@ -97,6 +99,6 @@ def merge(list1: list[Any], list2: list[Any]) -> list[Any]:
   """
   assert len(list1) == len(list2)
   res = []
-  for a, b in zip(list1, list2):
+  for a, b in zip(list1, list2, strict=False):
     res.append(b if a is None else a)
   return res

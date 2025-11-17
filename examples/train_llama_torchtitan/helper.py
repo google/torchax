@@ -23,29 +23,33 @@ P = jax.sharding.PartitionSpec
 
 def compile_step_func(step, weights, buffers, opt_state, args, label, mesh):
   step, weights, buffers, opt_state, args, label = interop.jax_view(
-      (step, weights, buffers, opt_state, args, label))
+    (step, weights, buffers, opt_state, args, label)
+  )
   wshardings = tree_map(
-      lambda a: a.sharding if isinstance(a, jax.Array) else None, weights)
+    lambda a: a.sharding if isinstance(a, jax.Array) else None, weights
+  )
   bshardings = tree_map(
-      lambda a: a.sharding if isinstance(a, jax.Array) else None, buffers)
+    lambda a: a.sharding if isinstance(a, jax.Array) else None, buffers
+  )
   oshardings = tree_map(
-      lambda a: a.sharding if isinstance(a, jax.Array) else None, opt_state)
-  print('Start compiling')
+    lambda a: a.sharding if isinstance(a, jax.Array) else None, opt_state
+  )
+  print("Start compiling")
   start = time.perf_counter()
   lowered = jax.jit(
-      step,
-      donate_argnums=(0, 2),
-      #in_shardings=shardings,
-      out_shardings=(NamedSharding(mesh, P()), wshardings, oshardings),
+    step,
+    donate_argnums=(0, 2),
+    # in_shardings=shardings,
+    out_shardings=(NamedSharding(mesh, P()), wshardings, oshardings),
   ).lower(weights, buffers, opt_state, args, label)
-  #print(lowered.as_text())
+  # print(lowered.as_text())
   # import pdb; pdb.set_trace()
-  print('program size:', len(lowered.as_text()) / 1e6, 'm chars')
+  print("program size:", len(lowered.as_text()) / 1e6, "m chars")
   step_compiled = lowered.compile()
   end = time.perf_counter()
-  print('End compiling', end - start)
+  print("End compiling", end - start)
   for co in step_compiled.cost_analysis():
-    print('Cost analysis:', co)
+    print("Cost analysis:", co)
     # print('Flops', co['flops'])
     # print('GB accessed', co['bytes accessed'] / 1e9)
   return interop.torch_view(step_compiled)

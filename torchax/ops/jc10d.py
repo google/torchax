@@ -12,15 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import torch
 import jax
 import jax.numpy as jnp
+import torch
 
 from torchax.ops import ops_registry
 
 
 def op(*aten, **kwargs):
-
   def inner(func):
     for a in aten:
       ops_registry.register_torch_dispatch_op(a, func, **kwargs)
@@ -36,7 +35,6 @@ def _c10d_all_gather(input, group_size: int, group_name: str):
 
 @op(torch.ops._c10d_functional.all_reduce)
 def _c10d_all_reduce(self, reduceOp: str, group_name: str):
-
   if reduceOp == "sum":
     res = jax.lax.psum(self, axis_name="torch_dist")
   elif reduceOp == "avg":
@@ -53,9 +51,9 @@ def _c10d_all_reduce(self, reduceOp: str, group_name: str):
 @op(torch.ops._c10d_functional.broadcast)
 def _c10d_broadcast(self, src: int, group_name: str):
   masked = jnp.where(
-      jax.lax.axis_index("torch_dist") == src,
-      self,
-      jnp.zeros_like(self),
+    jax.lax.axis_index("torch_dist") == src,
+    self,
+    jnp.zeros_like(self),
   )
   return jax.lax.psum(masked, "torch_dist")
 

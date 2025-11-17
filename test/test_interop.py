@@ -13,13 +13,14 @@
 # limitations under the License.
 
 import functools
-import torch
 import unittest
-import torchax
-from torchax import interop
-import torchax
+
 import jax
 import jax.numpy as jnp
+import torch
+
+import torchax
+from torchax import interop
 
 
 def is_tpu_available():
@@ -28,44 +29,41 @@ def is_tpu_available():
     # jax.devices('tpu') will return a list of TPU devices if available.
     # If no TPUs are found or JAX is not configured for TPU,
     # it will raise a RuntimeError.
-    tpu_devices = jax.devices('tpu')
+    tpu_devices = jax.devices("tpu")
     return len(tpu_devices) > 0
   except RuntimeError:
     return False
 
 
 class InteropTest(unittest.TestCase):
-
   def setUp(self):
     torchax.enable_globally()
 
   def test_mod_attr(self):
-
     class Child(torch.nn.Module):
-
       def __init__(self):
         super().__init__()
         self.x = torch.ones(10, 10)
 
     class ModuleWithUnregisteredTensor(torch.nn.Module):
-
       def __init__(self):
         super().__init__()
         self.a = torch.nn.Linear(100, 100)
         self.b = torch.nn.Parameter(torch.ones(10, 10))
         c = torch.ones(10, 10)
-        self.register_buffer('c', c)
-        self.register_buffer('c2', c, persistent=False)
+        self.register_buffer("c", c)
+        self.register_buffer("c2", c, persistent=False)
         self.d = torch.ones(10, 10)
         self.m1 = Child()
 
     m = ModuleWithUnregisteredTensor()
     params, buffers = interop.extract_all_buffers(m)
-    self.assertEqual(set(params.keys()), {'a.weight', 'a.bias', 'b'})
-    self.assertEqual(set(buffers.keys()), {'c', 'c2', 'd', 'm1.x'})
+    self.assertEqual(set(params.keys()), {"a.weight", "a.bias", "b"})
+    self.assertEqual(set(buffers.keys()), {"c", "c2", "d", "m1.x"})
 
-    interop.set_all_buffers(m, {'a.weight': torch.tensor([0.0])},
-                            {'m1.x': torch.tensor([0.0])})
+    interop.set_all_buffers(
+      m, {"a.weight": torch.tensor([0.0])}, {"m1.x": torch.tensor([0.0])}
+    )
     self.assertEqual(m.a.weight.item(), 0)
     self.assertEqual(m.m1.x.item(), 0)
 
@@ -76,7 +74,7 @@ class InteropTest(unittest.TestCase):
         return x + 1
 
       j2t_fn = interop.j2t_autograd(fn)
-      x = torch.ones(2, 2, requires_grad=True, device='jax')
+      x = torch.ones(2, 2, requires_grad=True, device="jax")
 
       # Act
       actual = j2t_fn(x)
@@ -92,7 +90,7 @@ class InteropTest(unittest.TestCase):
         return x * 2
 
       j2t_fn = interop.j2t_autograd(fn)
-      x = torch.ones(2, 2, device='jax').requires_grad_()
+      x = torch.ones(2, 2, device="jax").requires_grad_()
 
       # Act
       actual = j2t_fn(x)
@@ -103,10 +101,8 @@ class InteropTest(unittest.TestCase):
       torch.testing.assert_close(x.grad, expected, check_device=False)
 
   def test_module_with_shared_weights(self):
-
     # arrange
     class ModuleWithSharedWeights(torch.nn.Module):
-
       def __init__(self):
         super().__init__()
         self.a = torch.nn.Linear(10, 10)
@@ -115,7 +111,7 @@ class InteropTest(unittest.TestCase):
       def forward(self, x):
         return self.a(self.b(x))
 
-    m = ModuleWithSharedWeights().to('jax')
+    m = ModuleWithSharedWeights().to("jax")
 
     m_jitted = interop.JittableModule(m, dedup_parameters=True)
 
@@ -124,7 +120,7 @@ class InteropTest(unittest.TestCase):
 
     # b's weights and bias are deduped
     self.assertEqual(len(m_jitted.params), 2)
-    x = torch.randn(10, 10).to('jax')
+    x = torch.randn(10, 10).to("jax")
     expected = m(x)
 
     # act
@@ -136,8 +132,9 @@ class InteropTest(unittest.TestCase):
     # arrange
     # make sure buffer donation works
     functional_forward = interop.jax_jit(
-        functools.partial(m_jitted.functional_call, 'forward'),
-        kwargs_for_jax_jit={'donate_argnums': (0,)})
+      functools.partial(m_jitted.functional_call, "forward"),
+      kwargs_for_jax_jit={"donate_argnums": (0,)},
+    )
 
     # act
     actual = functional_forward(m_jitted.params, m_jitted.buffers, x)
@@ -182,5 +179,5 @@ class InteropTest(unittest.TestCase):
     self.assertEqual(interop.torch_view(interop.jax_view(dtype)), dtype)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
   unittest.main()
