@@ -52,6 +52,16 @@ llama-3 8B training on TPU v6e-4 leads to following performance number:
 - throughput: ~ 5000 tokens / second / chip
 - MFU: ~27%
 
+## We also provide a Dockerfile for easy setup. Simply run:
+```bash
+cd ~
+docker build -f torchax/examples/train_llama_torchtitan/Dockerfile \
+  -t my_torchax_image:latest .
+docker run --rm -it --privileged --net=host \
+  -e PJRT_DEVICE=TPU \
+  my_torchax_image:latest
+```
+
 ## Detailed Code walkthrough:
 
 Below is the copy & paste of `train_llama.py` and annotated with what they do:
