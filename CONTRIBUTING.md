@@ -11,12 +11,18 @@ If you plan to contribute new features, utility functions or extensions to the c
 You can develop directly on a Mac (M1) for most parts. Using the steps in the README works. Here is a condensed version for easy copy & paste:
 
 ```bash
-   conda create --name <your_name> python=3.10
+   conda create --name <your_name> python=3.11
    conda activate <your_name>
    pip install --upgrade "jax[cpu]" torch
    pip install -r test-requirements.txt
    pip install -e .
    pytest test
+```
+### Ruff
+
+```
+ruff check torchax test test_dist examples --fix
+ruff format torchax test test_dist examples
 ```
 
 ### VSCode

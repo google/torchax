@@ -21,10 +21,10 @@ from jax.experimental import mesh_utils
 from torchax.ops.jtorch import _tpu_flash_attention
 
 env = torchax.default_env()
-jax.config.update('jax_enable_x64', False)
+jax.config.update("jax_enable_x64", False)
 env._mesh = jax.sharding.Mesh(
-    mesh_utils.create_device_mesh((4,)),
-    axis_names=("fsdp",),
+  mesh_utils.create_device_mesh((4,)),
+  axis_names=("fsdp",),
 )
 env.use_flash_attention = True
 
@@ -43,7 +43,6 @@ import torch
 
 
 class M(torch.nn.Module):
-
   def __init__(self):
     super().__init__()
     self.a = torch.nn.Linear(10, 10)
@@ -61,7 +60,7 @@ from torch.nn.utils import stateless
 
 
 def f(weights, x):
-  res = mjit.functional_call('forward', weights, {}, (x,))
+  res = mjit.functional_call("forward", weights, {}, (x,))
   return torch.sum(res)
 
 
@@ -74,17 +73,18 @@ def crossent(x, y):
 graded = jax.value_and_grad(attn)
 
 shape = (4, 32, 128, 32)
-q = jnp.ones(shape, dtype='bfloat16')
-v = jnp.ones(shape, dtype='bfloat16')
-k = jnp.ones(shape, dtype='bfloat16')
+q = jnp.ones(shape, dtype="bfloat16")
+v = jnp.ones(shape, dtype="bfloat16")
+k = jnp.ones(shape, dtype="bfloat16")
 
 env = torchax.default_env()
 weights = env.t2j_iso(env.to_xla(mjit.params))
 
 from torchax.interop import jax_view
 
-#print(jax.jit(graded).lower(q, v, k).as_text())
+# print(jax.jit(graded).lower(q, v, k).as_text())
 print(
-    jax.jit(jax.grad(jax_view(f))).lower(weights,
-                                         jax.ShapeDtypeStruct(
-                                             (10,), 'float32')).as_text())
+  jax.jit(jax.grad(jax_view(f)))
+  .lower(weights, jax.ShapeDtypeStruct((10,), "float32"))
+  .as_text()
+)

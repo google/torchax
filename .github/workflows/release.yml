@@ -1,0 +1,47 @@
+name: Official Release to PyPI
+
+on:
+  push:
+    # This job ONLY runs when a tag starting with 'v' is pushed (e.g., v1.0.0, v0.0.10)
+    tags:
+      - 'v*'
+  # Allows you to click "Run workflow" manually in GitHub UI for testing
+  workflow_dispatch:
+
+jobs:
+  pypi-publish:
+    runs-on: ubuntu-latest
+
+    # IMPORTANT: This environment name MUST match the one you set up
+    # in PyPI Settings > Publishing for your release configuration.
+    environment:
+      name: pypi
+      url: https://pypi.org/p/torchax # Replace 'torchax' with your package name
+
+    permissions:
+      # MANDATORY for OIDC Trusted Publishing
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+        # Fetch tags to ensure the latest version information is available
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install build dependencies
+        run: pip install build
+
+      - name: Build Wheel
+        # We build both here, as stable releases usually offer both formats.
+        run: python -m build --wheel
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        # Trusted Publishing handles authentication automatically.

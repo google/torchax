@@ -12,32 +12,39 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import torch
 import os
-from typing import Any, Dict
-from flax.training import checkpoints
+from typing import Any
+
 import jax
 import jax.numpy as jnp
 import numpy as np
+import torch
+from flax.training import checkpoints
+
 from . import tensor
+
 
 def _to_jax(pytree):
   def to_jax_array(x):
     if isinstance(x, tensor.Tensor):
-        return x.jax()
+      return x.jax()
     elif isinstance(x, torch.Tensor):
-        return jnp.asarray(x.cpu().numpy())
+      return jnp.asarray(x.cpu().numpy())
     return x
+
   return jax.tree_util.tree_map(to_jax_array, pytree)
 
 
 def _to_torch(pytree):
   return jax.tree_util.tree_map(
     lambda x: torch.from_numpy(np.asarray(x))
-    if isinstance(x, (jnp.ndarray, jax.Array)) else x, pytree)
+    if isinstance(x, (jnp.ndarray, jax.Array))
+    else x,
+    pytree,
+  )
 
 
-def save_checkpoint(state: Dict[str, Any], path: str, step: int):
+def save_checkpoint(state: dict[str, Any], path: str, step: int):
   """Saves a checkpoint to a file in JAX style.
 
   Args:
@@ -50,7 +57,7 @@ def save_checkpoint(state: Dict[str, Any], path: str, step: int):
   checkpoints.save_checkpoint(path, state, step=step, overwrite=True)
 
 
-def load_checkpoint(path: str) -> Dict[str, Any]:
+def load_checkpoint(path: str) -> dict[str, Any]:
   """Loads a checkpoint and returns it in JAX format.
 
   This function can load both PyTorch-style (single file) and JAX-style
@@ -76,4 +83,3 @@ def load_checkpoint(path: str) -> Dict[str, Any]:
     return _to_jax(state)
   else:
     raise FileNotFoundError(f"No such file or directory: {path}")
-    

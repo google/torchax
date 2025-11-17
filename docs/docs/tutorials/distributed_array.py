@@ -408,7 +408,7 @@ class Model(torch.nn.Module):
 
         self.layers = torch.nn.ModuleList(
             [torch.nn.Linear(in_, out)
-             for in_, out in zip(layer_sizes[:-1], layer_sizes[1:])])
+             for in_, out in zip(layer_sizes[:-1], layer_sizes[1:], strict=False)])
 
     def forward(self, x):
         for layer in self.layers:

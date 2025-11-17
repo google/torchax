@@ -20,7 +20,6 @@ decoder = nn.Sequential(nn.Linear(3, 128), nn.ReLU(), nn.Linear(128, 28 * 28))
 
 
 class LitAutoEncoder(L.LightningModule):
-
   def __init__(self, encoder, decoder):
     super().__init__()
     self.encoder, self.decoder = encoder, decoder
@@ -38,8 +37,7 @@ class LitAutoEncoder(L.LightningModule):
     return torch.optim.Adam(self.parameters(), lr=1e-3)
 
 
-dataset = tv.datasets.MNIST(
-    ".", download=True, transform=tv.transforms.ToTensor())
+dataset = tv.datasets.MNIST(".", download=True, transform=tv.transforms.ToTensor())
 
 # Lightning will automatically use all available GPUs!
 trainer = L.Trainer()
@@ -55,7 +53,6 @@ import optax
 
 
 class JaxTrainer:
-
   def __init__(self):
     pass
 
@@ -64,7 +61,6 @@ class JaxTrainer:
     return optax.adam(0.001)
 
   def fit(self, lightning_mod, data_loader):
-
     xla_env = torchax.default_env()
 
     def lightning_mod_loss(weights: jax.Array, data: jax.Array, batch_id):
@@ -76,8 +72,7 @@ class JaxTrainer:
       return jax_view(loss)
 
     jax_weights = jax_view(xla_env.to_xla(lightning_mod.state_dict()))
-    jax_optimizer = self.torch_opt_to_jax_opt(
-        lightning_mod.configure_optimizers())
+    jax_optimizer = self.torch_opt_to_jax_opt(lightning_mod.configure_optimizers())
     opt_state = jax_optimizer.init(jax_weights)
     grad_fn = jax.jit(jax.value_and_grad(lightning_mod_loss))
 
@@ -87,10 +82,11 @@ class JaxTrainer:
         loss, grads = grad_fn(jax_weights, xla_data, bid)
         updates, opt_state = jax_optimizer.update(grads, opt_state)
         jax_weights = optax.apply_updates(jax_weights, updates)
-        print('current_loss', loss)
+        print("current_loss", loss)
 
 
-print('-----------------')
+print("-----------------")
 trainer_jax = JaxTrainer()
 trainer_jax.fit(
-    LitAutoEncoder(encoder, decoder), data.DataLoader(dataset, batch_size=64))
+  LitAutoEncoder(encoder, decoder), data.DataLoader(dataset, batch_size=64)
+)

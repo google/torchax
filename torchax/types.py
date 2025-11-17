@@ -12,15 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Callable, Any, Union, ParamSpec, TypeAlias
-import torch
+from collections.abc import Callable
+from typing import Any, ParamSpec, TypeAlias, Union
+
 import jax
 import jax.numpy as jnp
-import sys
+import torch
 
-P = ParamSpec('P')
+P = ParamSpec("P")
 
-TorchValue: TypeAlias = Union[torch.Tensor, torch.dtype, 'TorchCallable', Any]
+TorchValue: TypeAlias = Union[torch.Tensor, torch.dtype, "TorchCallable", Any]
 TorchCallable: TypeAlias = Callable[P, TorchValue]
-JaxValue: TypeAlias = Union[jax.Array, jnp.dtype, 'JaxCallable', Any]
+JaxValue: TypeAlias = Union[jax.Array, jnp.dtype, "JaxCallable", Any]
 JaxCallable: TypeAlias = Callable[P, JaxValue]

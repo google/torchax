@@ -12,25 +12,26 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import threading
+import contextlib
+import itertools
 import logging
 import sys
-import contextlib
-from typing import Optional, Any
+import threading
+from typing import Any
+
 import jax
 import jax.numpy as jnp
 import numpy
-import itertools
 import torch
 import torch.distributed._functional_collectives
 import torch.func
 import torch.utils._mode_utils as mode_utils
 import torch.utils._python_dispatch as torch_dispatch
 import torch.utils._pytree as torch_pytree
-from torchax.view import View
-from torchax import config
+
+from torchax import amp, config
 from torchax.ops import mappings, ops_registry
-from torchax import amp
+from torchax.view import View
 
 logger = logging.getLogger(__name__)
 
@@ -52,7 +53,6 @@ log_nested.level = 0
 
 
 class Tensor(torch.Tensor):
-
   @staticmethod
   def __new__(cls, elem, env, requires_grad=False):
     dtype = mappings.j2t_dtype(elem.dtype)
@@ -62,16 +62,16 @@ class Tensor(torch.Tensor):
         shape[i] = 1
     if dtype is None:
       dtype = torch.float32
-    #dispatch_keys = torch.DispatchKeySet(torch._C.DispatchKey.PrivateUse1).add(torch._C.DispatchKey.AutogradPrivateUse1)
+    # dispatch_keys = torch.DispatchKeySet(torch._C.DispatchKey.PrivateUse1).add(torch._C.DispatchKey.AutogradPrivateUse1)
     if not (dtype.is_floating_point or dtype.is_complex):
       requires_grad = False
 
     return torch.Tensor._make_wrapper_subclass(
-        cls,
-        shape,
-        dtype=dtype,
-        device='meta',
-        requires_grad=requires_grad,
+      cls,
+      shape,
+      dtype=dtype,
+      device="meta",
+      requires_grad=requires_grad,
     )
 
   def __init__(self, elem: jax.Array, env: "Environment", requires_grad=False):
@@ -80,7 +80,7 @@ class Tensor(torch.Tensor):
     self._env = env
 
   def __str__(self):
-    return "Tensor({} {})".format(str(type(self._elem)), str(self._elem))
+    return f"Tensor({str(type(self._elem))} {str(self._elem)})"
 
   __repr__ = __str__
 
@@ -95,8 +95,7 @@ class Tensor(torch.Tensor):
   def flatten(self, start_dim=0, end_dim=-1):
     if end_dim == -1:
       end_dim = self.ndim
-    new_shape = (
-        self._elem.shape[:start_dim] + (-1,) + self._elem.shape[end_dim + 1:])
+    new_shape = self._elem.shape[:start_dim] + (-1,) + self._elem.shape[end_dim + 1 :]
     new_elem = jnp.reshape(self._elem, new_shape)
     return Tensor(new_elem, self._env)
     # return torch.reshape(self, new_shape)
@@ -117,11 +116,12 @@ class Tensor(torch.Tensor):
     if func == torch.ops._c10d_functional.wait_tensor.default:
       return args[0]._env.dispatch(func, types, args, kwargs)
     if func == torch.ops.prim.device.default:
-      return torch.device('privateuseone', 0)
+      return torch.device("privateuseone", 0)
     raise AssertionError(
-        'torchax Tensors can only do math within the torchax environment.'
-        'Please wrap your code with `with torchax.default_env()` or '
-        'call torchax.enable_globally() before.')
+      "torchax Tensors can only do math within the torchax environment."
+      "Please wrap your code with `with torchax.default_env()` or "
+      "call torchax.enable_globally() before."
+    )
 
   def detach(self):
     return Tensor(jax.lax.stop_gradient(self.jax()), self._env)
@@ -154,8 +154,7 @@ class Tensor(torch.Tensor):
 
   @property
   def data(self):
-    logger.warning(
-        "In-place to .data modifications still results a copy on TPU")
+    logger.warning("In-place to .data modifications still results a copy on TPU")
     return self
 
   @data.setter
@@ -181,7 +180,8 @@ class Tensor(torch.Tensor):
 
 def debug_accuracy(func, args, kwargs, current_output):
   args_torch, kwargs_torch, out_torch = torch_pytree.tree_map_only(
-      torch.Tensor, lambda x: x.torch(), (args, kwargs, current_output))
+    torch.Tensor, lambda x: x.torch(), (args, kwargs, current_output)
+  )
 
   with mode_utils.no_dispatch(), torch._C.DisableTorchFunction():
     if "device" in kwargs_torch:
@@ -191,16 +191,17 @@ def debug_accuracy(func, args, kwargs, current_output):
   flattened_current_out, _ = torch_pytree.tree_flatten(out_torch)
   flattened_expected_out, _ = torch_pytree.tree_flatten(expected_out)
 
-  for ex, real in zip(flattened_expected_out, flattened_current_out):
+  for ex, real in zip(flattened_expected_out, flattened_current_out, strict=False):
     if isinstance(ex, torch.Tensor) and ex.dtype != real.dtype:
       ex = ex.to(real.dtype)
     try:
       if isinstance(ex, torch.Tensor) and not torch.allclose(
-          ex, real, atol=1e-3, equal_nan=True):
+        ex, real, atol=1e-3, equal_nan=True
+      ):
         import pdb
 
         pdb.set_trace()
-    except:
+    except Exception:
       import pdb
 
       pdb.set_trace()
@@ -209,7 +210,6 @@ def debug_accuracy(func, args, kwargs, current_output):
 
 
 def _make_debug_msg(is_dispatch, log_args, func, args, kwargs):
-
   def _display(a):
     if isinstance(a, torch.Tensor):
       return f"Tensor of {type(a)}: {a.dtype}{a.shape}"
@@ -221,9 +221,11 @@ def _make_debug_msg(is_dispatch, log_args, func, args, kwargs):
   kwargs = kwargs or {}
   title = "DISPATCH" if is_dispatch else "FUNCTION"
   args_msg = "args: " + ",".join(_display(a) for a in args) if log_args else ""
-  kwargs_msg = ("kwargs: " +
-                ",".join(f"{key}: {_display(a)}" for key, a in kwargs.items())
-                if log_args else "")
+  kwargs_msg = (
+    "kwargs: " + ",".join(f"{key}: {_display(a)}" for key, a in kwargs.items())
+    if log_args
+    else ""
+  )
   return f"{title}: {_name_of_func(func)} {args_msg} ~ {kwargs_msg}"
 
 
@@ -233,49 +235,43 @@ class XLAFunctionMode(torch.overrides.TorchFunctionMode):
   def __init__(self, env):
     self.env = env
 
-  def __torch_function__(self,
-                         func,
-                         types,
-                         args=(),
-                         kwargs=None) -> torch.Tensor:
+  def __torch_function__(self, func, types, args=(), kwargs=None) -> torch.Tensor:
     message = f"FUNCTION: {_name_of_func(func)}"
     if self.env.config.debug_print_each_op_operands:
       message = message + "f"
-    message = _make_debug_msg(False,
-                              self.env.config.debug_print_each_op_operands,
-                              func, args, kwargs)
+    message = _make_debug_msg(
+      False, self.env.config.debug_print_each_op_operands, func, args, kwargs
+    )
     with log_nested(self.env, message):
       try:
         return self.env.dispatch(func, types, args, kwargs)
       except OperatorNotFound:
         pass
-      if _name_of_func(func) in (
-          "rot90"):  # skip rot90 with k%4==0 due to no change
-        if len(args) >= 2 and type(args[1]) == int:
+      if _name_of_func(func) in ("rot90"):  # skip rot90 with k%4==0 due to no change
+        if len(args) >= 2 and isinstance(args[1], int):
           if (args[1]) % 4 == 0:
             return args[0]
       return func(*args, **(kwargs or {}))
 
 
 class XLADispatchMode(torch_dispatch.TorchDispatchMode):
-
   def __init__(self, env):
     self.env = env
 
   def __torch_dispatch__(self, func, types, args=(), kwargs=None):
-    message = _make_debug_msg(True,
-                              self.env.config.debug_print_each_op_operands,
-                              func, args, kwargs)
+    message = _make_debug_msg(
+      True, self.env.config.debug_print_each_op_operands, func, args, kwargs
+    )
     with log_nested(self.env, message):
       if isinstance(func, torch._ops.OpOverloadPacket):
         with self:
           return func(*args, **kwargs)
       # Only functions under these namespaces will be intercepted
       if func.namespace not in (
-          "aten",
-          "_c10d_functional",
-          "torchvision",
-          "xla",
+        "aten",
+        "_c10d_functional",
+        "torchvision",
+        "xla",
       ):
         return func(*args, **kwargs)
       return self.env.dispatch(func, types, args, kwargs)
@@ -289,18 +285,18 @@ def _name_of_func(func):
 
 # Constructors that don't take other tensor as input
 TENSOR_CONSTRUCTORS = {
-    torch.ones,
-    torch.zeros,
-    torch.empty,
-    torch.empty_strided,
-    torch.tensor,
-    torch.arange,
-    torch.eye,
-    torch.randn,
-    torch.rand,
-    torch.randint,
-    torch.full,
-    torch.as_tensor,
+  torch.ones,
+  torch.zeros,
+  torch.empty,
+  torch.empty_strided,
+  torch.tensor,
+  torch.arange,
+  torch.eye,
+  torch.randn,
+  torch.rand,
+  torch.randint,
+  torch.full,
+  torch.as_tensor,
 }
 
 # TODO(wen): use existing types, either from torch or jax
@@ -328,7 +324,6 @@ class RuntimeProperty:
 
 
 class OverrideProperty(RuntimeProperty):
-
   def __init__(self, parent, override):
     self.parent = parent
     self._override = dict(override)
@@ -372,25 +367,24 @@ class Environment(contextlib.ContextDecorator):
     _prng_key = jax.random.key(torch.initial_seed() % (1 << 63))
     self._property = threading.local()
     self._initial_content = RuntimeProperty(
-        mesh=_mesh, prng=_prng_key, autocast_dtype=autocast_dtype)
+      mesh=_mesh, prng=_prng_key, autocast_dtype=autocast_dtype
+    )
 
   @property
   def param(self):
-    if not hasattr(self._property, 'content'):
-      self._property.content = [
-        self._initial_content
-      ]
+    if not hasattr(self._property, "content"):
+      self._property.content = [self._initial_content]
     return self._property.content[-1]
 
   def manual_seed(self, key):
     if isinstance(key, torch.Tensor):
-        assert key.ndim == 0, 'manual seed can only take scalars'
-        assert not key.dtype.is_floating_point, 'manual seed can only be integers'
+      assert key.ndim == 0, "manual seed can only take scalars"
+      assert not key.dtype.is_floating_point, "manual seed can only be integers"
 
-        if isinstance(key, Tensor):
-            key = key._elem
-        else:
-            key = key.item()
+      if isinstance(key, Tensor):
+        key = key._elem
+      else:
+        key = key.item()
     jax_key = jax.random.PRNGKey(key)
     new_prop = self.param.override(prng=jax_key)
     self._property.content.append(new_prop)
@@ -406,27 +400,28 @@ class Environment(contextlib.ContextDecorator):
     if isinstance(device, torch.device):
       device = device.type
 
-    if ':' in device:
-      device = device.split(':')[0]
+    if ":" in device:
+      device = device.split(":")[0]
 
     match device:
-      case 'cpu':
+      case "cpu":
         return False
-      case 'cuda':
+      case "cuda":
         return self.config.treat_cuda_as_jax_device
-      case 'jax':
+      case "jax":
         return True
-      case 'privateuseone':
+      case "privateuseone":
         return True
-      case 'meta':
+      case "meta":
         return self.enabled
     return False
 
   def load_ops(self):
-    from torchax.ops import jaten, jtorch, jc10d, jtorchvision_nms
+    from torchax.ops import jaten, jc10d, jtorch, jtorchvision_nms  # noqa: F401
 
-    for k, v in itertools.chain(ops_registry.all_aten_ops.items(),
-                                ops_registry.all_torch_functions.items()):
+    for k, v in itertools.chain(
+      ops_registry.all_aten_ops.items(), ops_registry.all_torch_functions.items()
+    ):
       if v.is_jax_function:
         self._ops[k] = v
       else:
@@ -437,16 +432,15 @@ class Environment(contextlib.ContextDecorator):
     for k, v in DECOMPOSITIONS.items():
       if k not in self._decomps:
         self._decomps[k] = ops_registry.Operator(
-            k,
-            v,
-            is_jax_function=False,
-            is_user_defined=False,
-            needs_env=False,
-            is_view_op=k in MUTABLE_DECOMPOSITION,
+          k,
+          v,
+          is_jax_function=False,
+          is_user_defined=False,
+          needs_env=False,
+          is_view_op=k in MUTABLE_DECOMPOSITION,
         )
 
   def _get_op_or_decomp(self, func):
-
     def _get_from_dict(op_dict, op):
       op = op_dict.get(func)
       if op is None and isinstance(func, torch._ops.OpOverloadPacket):
@@ -463,17 +457,18 @@ class Environment(contextlib.ContextDecorator):
 
     if op is None:
       raise OperatorNotFound(
-          f"Operator with name {_name_of_func(func)} has no lowering")
+        f"Operator with name {_name_of_func(func)} has no lowering"
+      )
 
     return op
 
   def _is_same_device(self, the_tensor, new_device):
     if new_device is None:
       return True
-    if new_device == 'meta' and the_tensor.device.type == 'jax':
+    if new_device == "meta" and the_tensor.device.type == "jax":
       return True
     if the_tensor.device.type != new_device:
-      if the_tensor.device.type == 'cuda':
+      if the_tensor.device.type == "cuda":
         return self.config.treat_cuda_as_jax_device
       return False
     return True
@@ -501,8 +496,7 @@ class Environment(contextlib.ContextDecorator):
           return res.to(device=new_device, dtype=new_dtype)
     return res
 
-  def get_and_rotate_prng_key(self,
-                              generator: Optional[torch.Generator] = None):
+  def get_and_rotate_prng_key(self, generator: torch.Generator | None = None):
     if generator is not None:
       return jax.random.PRNGKey(generator.initial_seed() % (2**63))
     return self.param.get_and_rotate_prng_key()
@@ -514,7 +508,7 @@ class Environment(contextlib.ContextDecorator):
       requires_grad = kwargs.get("requires_grad", False)
       op = self._get_op_or_decomp(func)
       if op.needs_env:
-        kwargs['env'] = self
+        kwargs["env"] = self
       if op.is_jax_function:
         (args, kwargs) = self.t2j_iso((args, kwargs))
       res = op.func(*args, **kwargs)
@@ -549,10 +543,10 @@ class Environment(contextlib.ContextDecorator):
     if func in TENSOR_CONSTRUCTORS:
       return self._handle_tensor_constructor(func, args, kwargs)
     if func in (
-        torch.Tensor.to,
-        torch.ops.aten.lift_fresh.default,
-        torch.ops.aten._to_copy,
-        torch.ops.aten._to_copy.default,
+      torch.Tensor.to,
+      torch.ops.aten.lift_fresh.default,
+      torch.ops.aten._to_copy,
+      torch.ops.aten._to_copy.default,
     ):
       return self._torch_Tensor_to(args, kwargs)
 
@@ -560,8 +554,7 @@ class Environment(contextlib.ContextDecorator):
     # We should skip and let torch handle it.
 
     tensor_args = [
-        t for t in torch_pytree.tree_flatten(args)[0]
-        if isinstance(t, torch.Tensor)
+      t for t in torch_pytree.tree_flatten(args)[0] if isinstance(t, torch.Tensor)
     ]
 
     def is_not_torchax_tensor(x):
@@ -577,9 +570,9 @@ class Environment(contextlib.ContextDecorator):
       old_args, old_kwargs = args, kwargs
       with self._dispatch_mode:
         args, kwargs = torch_pytree.tree_map_only(
-            torch.distributed._functional_collectives.AsyncCollectiveTensor,
-            torch.distributed._functional_collectives.wait_tensor,
-            (args, kwargs),
+          torch.distributed._functional_collectives.AsyncCollectiveTensor,
+          torch.distributed._functional_collectives.wait_tensor,
+          (args, kwargs),
         )
 
       try:
@@ -590,8 +583,9 @@ class Environment(contextlib.ContextDecorator):
           if self.param.autocast_dtype is not None:
             autocast_policy = amp.autocast_policy.get(func)
             if autocast_policy is not None:
-              args, kwargs = amp.execute_policy(autocast_policy, args, kwargs,
-                                                self.param.autocast_dtype)
+              args, kwargs = amp.execute_policy(
+                autocast_policy, args, kwargs, self.param.autocast_dtype
+              )
 
         if op.is_jax_function:
           args, kwargs = self.t2j_iso((args, kwargs))
@@ -664,15 +658,17 @@ class Environment(contextlib.ContextDecorator):
     """
 
     def to_jax(x):
-      if self.config.allow_mixed_math_with_scalar_tensor and not isinstance(
-          x, Tensor) and not isinstance(x, View):
+      if (
+        self.config.allow_mixed_math_with_scalar_tensor
+        and not isinstance(x, Tensor)
+        and not isinstance(x, View)
+      ):
         if x.squeeze().ndim == 0:
           return x.item()
-      if isinstance(
-          x, torch.distributed._functional_collectives.AsyncCollectiveTensor):
+      if isinstance(x, torch.distributed._functional_collectives.AsyncCollectiveTensor):
         x = x.wait()
       assert isinstance(x, Tensor) or isinstance(x, View), (
-          f"Expect a Tensor or a View but got {type(x)}; usually this means there is a mixed math between XLATensor and torch.Tensor"
+        f"Expect a Tensor or a View but got {type(x)}; usually this means there is a mixed math between XLATensor and torch.Tensor"
       )
       return x.jax()
 
@@ -680,7 +676,6 @@ class Environment(contextlib.ContextDecorator):
     return res
 
   def v2t_iso(self, views):
-
     def to_tensor(x):
       if isinstance(x, View):
         return x.torch()
@@ -695,8 +690,7 @@ class Environment(contextlib.ContextDecorator):
     This function will not copy, will just wrap the jax array with a torchax Tensor
     Note: iso is short for "isomorphic"
     """
-    return torch_pytree.tree_map_only(jax.Array, lambda x: Tensor(x, self),
-                                      jaxarray)
+    return torch_pytree.tree_map_only(jax.Array, lambda x: Tensor(x, self), jaxarray)
 
   def j2t_copy(self, args):
     """Convert torch.Tensor in cpu to a jax array
@@ -704,9 +698,10 @@ class Environment(contextlib.ContextDecorator):
     This might involves copying the data (depending if dlpack is enabled)
     """
     return torch_pytree.tree_map_only(
-        jax.Array,
-        lambda x: mappings.j2t(x, self.config.use_dlpack_for_data_conversion),
-        args)
+      jax.Array,
+      lambda x: mappings.j2t(x, self.config.use_dlpack_for_data_conversion),
+      args,
+    )
 
   def t2j_copy(self, args):
     """Convert jax array to torch.Tensor in cpu.
@@ -714,18 +709,19 @@ class Environment(contextlib.ContextDecorator):
     This might involves copying the data (depending if dlpack is enabled)
     """
     return torch_pytree.tree_map_only(
-        torch.Tensor,
-        lambda x: mappings.t2j(x, self.config.use_dlpack_for_data_conversion),
-        args)
+      torch.Tensor,
+      lambda x: mappings.t2j(x, self.config.use_dlpack_for_data_conversion),
+      args,
+    )
 
   def override_op_definition(self, op_to_override, op_impl, is_view_op=False):
     self._ops[op_to_override] = ops_registry.Operator(
-        op_to_override,
-        op_impl,
-        is_jax_function=False,
-        is_user_defined=True,
-        needs_env=False,
-        is_view_op=is_view_op,
+      op_to_override,
+      op_impl,
+      is_jax_function=False,
+      is_user_defined=True,
+      needs_env=False,
+      is_view_op=is_view_op,
     )
 
   @contextlib.contextmanager
