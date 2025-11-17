@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import annotations
+
 from abc import ABC, abstractmethod
 from enum import Enum
 from typing import Any
@@ -233,10 +235,10 @@ class View(torch.Tensor):
   @staticmethod
   def __new__(
     cls,
-    parent: "torchax.Tensor" | "View",  # noqa: F821
+    parent: torchax.Tensor | View,  # noqa: F821
     view_info: ViewInfo,
     env: Any,
-  ) -> "View":
+  ) -> View:
     """
     Args:
         parent: Parent tensor or view
@@ -254,7 +256,7 @@ class View(torch.Tensor):
 
   def __init__(
     self,
-    parent: "torchax.Tensor" | "View",  # noqa: F821
+    parent: torchax.Tensor | View,  # noqa: F821
     view_info: ViewInfo,
     env: Any,
   ) -> None:
@@ -295,7 +297,7 @@ class View(torch.Tensor):
       assert new_value.shape == self.parent._elem.shape
       self.parent._elem = new_value
 
-  def torch(self) -> "torchax.Tensor":  # noqa: F821
+  def torch(self) -> torchax.Tensor:  # noqa: F821
     """
     Returns a Torchax tensor representing this view after all transformations
     """
@@ -305,7 +307,7 @@ class View(torch.Tensor):
 
   def update(
     self,
-    new_values: jax.Array | "View" | "torchax.Tensor",  # noqa: F821
+    new_values: jax.Array | View | torchax.Tensor,  # noqa: F821
     view_infos: list[ViewInfo] | None = None,
   ) -> None:
     """
@@ -357,7 +359,7 @@ class View(torch.Tensor):
       "call torchax.enable_globally() before."
     )
 
-  def create_sub_view(self, view_info: ViewInfo) -> "View":
+  def create_sub_view(self, view_info: ViewInfo) -> View:
     """
     Create a new view that is a child of this view.
     """
