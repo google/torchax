@@ -417,6 +417,8 @@ class Environment(contextlib.ContextDecorator):
     return False
 
   def load_ops(self):
+    from torchax.ops import jaten, jc10d, jtorch, jtorchvision_nms  # noqa: F401
+
     for k, v in itertools.chain(
       ops_registry.all_aten_ops.items(), ops_registry.all_torch_functions.items()
     ):
