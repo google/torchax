@@ -65,34 +65,34 @@ test:
 	@export JAX_PLATFORMS=cpu && \
 	find ./test -name "test_*.py" -type f | while IFS= read -r test_file; do \
 		echo "Running tests in $$test_file"; \
-		uv run --frozen pytest "$$test_file" -v --tb=short || exit 1; \
+		pytest "$$test_file" -v --tb=short || exit 1; \
 	done
 	@echo "✓ Unit tests completed!"
 
 test-fast:
 	@echo "Running unit tests (parallel)..."
-	@JAX_PLATFORMS=cpu uv run --frozen pytest test/ -v --tb=short -n auto
+	@JAX_PLATFORMS=cpu pytest test/ -v --tb=short -n auto
 
 test-all:
 	@echo "Running unit tests..."
 	@$(MAKE) test
 	@echo ""
 	@echo "Running distributed tests..."
-	@XLA_FLAGS=--xla_force_host_platform_device_count=4 uv run --frozen pytest test_dist/ -n 0
+	@XLA_FLAGS=--xla_force_host_platform_device_count=4 pytest test_dist/ -n 0
 	@echo ""
 	@echo "Running tutorial tests..."
 	@export JAX_PLATFORMS=cpu && \
 	for file in $$(find docs/docs/tutorials -name '*.py' 2>/dev/null || true); do \
 		if [ -f "$$file" ]; then \
 			echo "Testing $$file"; \
-			uv run --frozen python "$$file" || exit 1; \
+			python "$$file" || exit 1; \
 		fi \
 	done
 	@echo "✓ All tests completed!"
 
 test-coverage:
 	@echo "Running tests with coverage..."
-	@JAX_PLATFORMS=cpu uv run --frozen pytest test/ --cov=torchax --cov-report=html --cov-report=term
+	@JAX_PLATFORMS=cpu pytest test/ --cov=torchax --cov-report=html --cov-report=term
 
 # === Cleaning ===
 

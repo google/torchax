@@ -41,22 +41,27 @@ jobs:
 
       - name: Install dependencies
         run: |
+          source .venv/bin/activate
           uv pip install -e ".[cpu,test,docs]"
 
       - name: Run unit tests
-        run: make test
+        run: |
+          source .venv/bin/activate
+          make test
         continue-on-error: false
 
       - name: Run distributed tests
         run: |
-          XLA_FLAGS=--xla_force_host_platform_device_count=4 uv run pytest test_dist/ -n 0
+          source .venv/bin/activate
+          XLA_FLAGS=--xla_force_host_platform_device_count=4 pytest test_dist/ -n 0
 
       - name: Test tutorials can run
         run: |
+          source .venv/bin/activate
           export JAX_PLATFORMS=cpu
           for FILE in $(find docs/docs/tutorials -name '*.py' 2>/dev/null || true); do
             if [ -f "$FILE" ]; then
               echo "Testing $FILE"
-              uv run python "$FILE"
+              python "$FILE"
             fi
           done
