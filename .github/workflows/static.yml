@@ -31,25 +31,23 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v5
-      - name: Set up Python 3.12
-        uses: actions/setup-python@v6
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
         with:
-          python-version: 3.12
+          enable-cache: true
+          cache-dependency-glob: "pyproject.toml"
+
+      - name: Set up Python
+        run: uv python install 3.12
+
       - name: Setup Pages
         uses: actions/configure-pages@v5
+
       - name: Install dependencies
         run: |
-          pip install --upgrade pip
-          # note: installing torch and torchvision together ensures their version compatibility
-          pip install torch==2.8.0 torchvision --index-url https://download.pytorch.org/whl/cpu
-          pip install jupyter nbconvert pandas matplotlib
-          pip install -r test-requirements.txt
-          pip install -e .[cpu]
-          pip install mkdocs mkdocs-material mkdocs-rtd-dropdown mkdocs-jupyter
-      - name: build docs
-        working-directory: docs
-        run: |
-          mkdocs build
+          uv pip install --system -e ".[cpu,docs]"
+
       - name: Generate notebooks
         working-directory: docs
         run: |
@@ -59,15 +57,16 @@ jobs:
             jupytext --to ipynb $FILE -o "$OUTFILE"
             jupyter nbconvert --to notebook --execute $OUTFILE --output $(basename $OUTFILE)
           done
-      - name: Build site
-        working-directory: docs
-        run: |
-          mkdocs build
+
+      - name: Build documentation
+        run: make docs
+
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          # Upload entire repository
+          # Upload docs site
           path: "./docs/site"
+
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4

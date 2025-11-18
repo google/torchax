@@ -19,27 +19,26 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
         with:
-          python-version: '3.11'
+          enable-cache: true
 
-      - name: Install build dependencies
-        run: pip install build
+      - name: Set up Python
+        run: uv python install 3.11
 
       - name: Patch version for Nightly
         run: |
           python scripts/update_to_nightly_version.py
-
           # Verify the change (Debugging)
           grep "__version__" torchax/__init__.py
 
-      - name: Build Wheel and Sdist
-        run: python -m build --wheel
+      - name: Build package
+        run: make build
 
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
-        # Note: We are NOT providing a password here because we will use Trusted Publishing.
+        # Note: Using Trusted Publishing (passwordless)
         # If you must use a token, uncomment the lines below:
         # with:
         #   password: ${{ secrets.PYPI_API_TOKEN }}

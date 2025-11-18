@@ -18,7 +18,10 @@ build-backend = "hatchling.build"
 
 [project]
 name = "torchax"
-dependencies = []
+dependencies = [
+    "jax[cpu]>=0.6.2",
+    "torch>=2.8.0",
+]
 requires-python = ">=3.11"
 license = {file = "LICENSE"}
 dynamic = ["version"]
@@ -47,17 +50,59 @@ classifiers = [
 
 [project.urls]
 "Homepage" = "https://github.com/google/torchax"
-
+"Repository" = "https://github.com/google/torchax"
+"Bug Tracker" = "https://github.com/google/torchax/issues"
 
 [tool.hatch.version]
 path = "torchax/__init__.py"
 
 [project.optional-dependencies]
-cpu = ["jax[cpu]>=0.6.2", "jax[cpu]"]
-# Add libtpu index `-f https://storage.googleapis.com/libtpu-wheels/index.html -f https://storage.googleapis.com/libtpu-releases/index.html`
-tpu = ["jax[cpu]>=0.6.2", "jax[tpu]"]
-cuda = ["jax[cpu]>=0.6.2", "jax[cuda12]"]
-odml = ["jax[cpu]>=0.6.2", "jax[cpu]"]
+# Hardware-specific backends
+cpu = ["jax[cpu]>=0.6.2"]
+tpu = ["jax[tpu]>=0.6.2"]  # Add index: https://storage.googleapis.com/libtpu-wheels/index.html
+cuda = ["jax[cuda12]>=0.6.2"]
+odml = ["jax[cpu]>=0.6.2"]
+
+# Development dependencies
+dev = [
+    "ruff>=0.9.0",
+    "yapf==0.40.2",
+    "flax==0.10.6",
+]
+
+# Test dependencies
+test = [
+    "pytest>=8.3.5",
+    "pytest-xdist>=3.8.0",
+    "pytest-reraise>=2.1.2",
+    "absl-py>=2.2.2",
+    "immutabledict>=4.2.1",
+    "sentencepiece>=0.2.0",
+    "expecttest>=0.3.0",
+    "optax>=0.2.4",
+    "termcolor>=2.0.0",
+]
+
+# Documentation dependencies
+docs = [
+    "mkdocs>=1.5.0",
+    "mkdocs-material>=9.0.0",
+    "jupyter>=1.0.0",
+    "nbconvert>=7.0.0",
+    "pandas>=2.0.0",
+    "matplotlib>=3.7.0",
+]
+
+# Training/experimentation dependencies
+train = [
+    "tensorboard>=2.15.0",
+    "optax>=0.2.4",
+]
+
+# All dependencies for complete development setup
+all = [
+    "torchax[dev,test,docs,train]",
+]
 
 [tool.hatch.build.targets.wheel]
 packages = ["torchax"]

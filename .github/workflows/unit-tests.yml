@@ -1,21 +1,23 @@
-# This workflow will install Python dependencies, run tests and lint with a variety of Python versions
+# This workflow will install Python dependencies and run tests with multiple Python versions
 # For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-python
 
-name: Python package
+name: Tests
 
 on:
   push:
     branches: ["main"]
     paths-ignore:
       - "docs/**"
+      - "**.md"
   pull_request:
     branches: ["main"]
     paths-ignore:
       - "docs/**"
+      - "**.md"
 
 jobs:
-  build:
-    name: Python unit tests
+  test:
+    name: Python ${{ matrix.python-version }} Tests
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -25,39 +27,33 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v6
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
         with:
-          python-version: ${{ matrix.python-version }}
+          enable-cache: true
+          cache-dependency-glob: "pyproject.toml"
+
+      - name: Set up Python ${{ matrix.python-version }}
+        run: uv python install ${{ matrix.python-version }}
+
       - name: Install dependencies
         run: |
-          pip install --upgrade pip
-          # note: installing torch and torchvision together ensures their version compatibility
-          pip install torch==2.8.0 torchvision --index-url https://download.pytorch.org/whl/cpu
-          pip install jupyter nbconvert pandas matplotlib
-          pip install -r test-requirements.txt
-          pip install -e .[cpu]
-      - name: Test with pytest
-        shell: bash
+          uv pip install --system -e ".[cpu,test,docs]"
+
+      - name: Run unit tests
+        run: make test
+        continue-on-error: false
+
+      - name: Run distributed tests
         run: |
-          export JAX_PLATFORMS=cpu
-          # Find all Python test files recursively
-          find ./test -name "test_*.py" -type f | while IFS= read -r test_file; do
-            # Skip tests with known issues
-            if [[ "$test_file" == *"test_tf_integration.py"* ]]; then
-              echo "Skipping ${test_file}. TODO(https://github.com/pytorch/xla/issues/8770): Investigate"
-              continue
-            fi
-            echo "Running tests for $test_file"
-            pytest "$test_file"
-          done
-          # Run distributed tests.
-          XLA_FLAGS=--xla_force_host_platform_device_count=4 pytest -n 0 test_dist/
-          echo "Tests completed."
+          XLA_FLAGS=--xla_force_host_platform_device_count=4 uv run pytest test_dist/ -n 0
+
       - name: Test tutorials can run
-        shell: bash
         run: |
           export JAX_PLATFORMS=cpu
-          for FILE in $(find docs -name '*.py'); do
-              python $FILE
+          for FILE in $(find docs/docs/tutorials -name '*.py' 2>/dev/null || true); do
+            if [ -f "$FILE" ]; then
+              echo "Testing $FILE"
+              python "$FILE"
+            fi
           done
