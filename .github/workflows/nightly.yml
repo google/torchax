@@ -27,9 +27,12 @@ jobs:
       - name: Set up Python
         run: uv python install 3.11
 
+      - name: Create virtual environment
+        run: uv venv
+
       - name: Patch version for Nightly
         run: |
-          python scripts/update_to_nightly_version.py
+          uv run python scripts/update_to_nightly_version.py
           # Verify the change (Debugging)
           grep "__version__" torchax/__init__.py
 

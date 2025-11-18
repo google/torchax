@@ -41,12 +41,15 @@ jobs:
       - name: Set up Python
         run: uv python install 3.12
 
+      - name: Create virtual environment
+        run: uv venv
+
       - name: Setup Pages
         uses: actions/configure-pages@v5
 
       - name: Install dependencies
         run: |
-          uv pip install --system -e ".[cpu,docs]"
+          uv pip install -e ".[cpu,docs]"
 
       - name: Generate notebooks
         working-directory: docs
@@ -54,8 +57,8 @@ jobs:
           export JAX_PLATFORMS=cpu
           for FILE in $(find docs -name '*.py'); do
             export OUTFILE="${FILE%.*}.ipynb"
-            jupytext --to ipynb $FILE -o "$OUTFILE"
-            jupyter nbconvert --to notebook --execute $OUTFILE --output $(basename $OUTFILE)
+            uv run jupytext --to ipynb $FILE -o "$OUTFILE"
+            uv run jupyter nbconvert --to notebook --execute $OUTFILE --output $(basename $OUTFILE)
           done
 
       - name: Build documentation
