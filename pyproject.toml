@@ -81,6 +81,7 @@ test = [
     "expecttest>=0.3.0",
     "optax>=0.2.4",
     "termcolor>=2.0.0",
+    "flax>=0.10.6",  # Required by checkpoint.py
 ]
 
 # Documentation dependencies
