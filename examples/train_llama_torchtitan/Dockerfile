@@ -13,8 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Use Python 3.10 as the base image
-FROM python:3.10-slim-bullseye
+# Use Python 3.11 as the base image
+FROM python:3.11-slim-bullseye
 
 # Install system dependencies
 RUN apt-get update && apt-get upgrade -y
@@ -28,9 +28,10 @@ RUN curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key --keyri
 RUN apt-get update && apt-get install -y google-cloud-sdk git
 
 # Set the default Python version to 3.10
-RUN update-alternatives --install /usr/bin/python3 python3 /usr/local/bin/python3.10 1
+# RUN update-alternatives --install /usr/bin/python3 python3 /usr/local/bin/python3.10 1
 RUN pip install jax[tpu] -f https://storage.googleapis.com/jax-releases/libtpu_releases.html
-RUN pip install optax fire tensorflow tensorboard-plugin-profile
+RUN pip install optax fire flax triton 
+RUN pip install tensorflow tensorboard-plugin-profile
 RUN pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
 
 WORKDIR /
@@ -40,9 +41,9 @@ RUN pip install -r requirements.txt
 RUN pip install .
 
 WORKDIR /
-RUN git clone https://github.com/pytorch/xla.git
-WORKDIR xla/experimental/torchax
+RUN git clone https://github.com/google/torchax.git
+WORKDIR /torchax
 RUN pip install -e .
 
 ENTRYPOINT ["python", "examples/train_llama_torchtitan/train_llama.py"]
-CMD ["--batch_size=8", "--seqlen=2048"]
+CMD ["--model_type=debugmodel", "--batch_size=8", "--seqlen=2048"]
