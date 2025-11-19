@@ -13,9 +13,12 @@
 # limitations under the License.
 
 import os
+import sys
 import time
 import logging
 import zlib
+import faulthandler
+import traceback
 from typing import Tuple
 from collections import defaultdict
 import functools
@@ -25,6 +28,7 @@ import torch.nn.functional
 from torch.utils import _pytree as pytree
 import splash_attn
 import helper
+from torch.utils import dlpack as torch_dlpack
 
 import torchax as tx
 import torchax.interop
@@ -39,6 +43,7 @@ import optax
 
 from torchtitan.models.llama3 import llama3_args
 from torchtitan.models.llama3.model import model as titan
+from torchtitan.models.llama3.model.model import TransformerBlock
 
 P = jax.sharding.PartitionSpec
 
@@ -72,7 +77,7 @@ def sharded_device_put(tensor: jax.Array, sharding) -> jax.Array:
 
 
 sharding_map_original = {
-  "freqs_cis": (),  #  torch.complex64 (2048, 64)
+  # "freqs_cis": (),  #  torch.complex64 (2048, 64)
   "tok_embeddings.weight": ("fsdp", "tp"),  #  torch.float32 (vocab_size, 4096)
   "layers.*.attention.wo.weight": ("fsdp", "tp"),  #  torch.int8 (4096, 4096)
   "layers.*.attention.wq.weight": ("tp", "fsdp"),  #  torch.int8 (4096, 4096)
@@ -88,7 +93,7 @@ sharding_map_original = {
 }
 
 sharding_map_scan = {
-  "freqs_cis": (),
+  # "freqs_cis": (),
   "tok_embeddings.weight": ("tp", "fsdp"),
   "layers.params.attention___wo___weight": (None, "fsdp", "tp"),
   "layers.params.attention___wq___weight": (None, "tp", "fsdp"),
@@ -232,51 +237,107 @@ def _process_sharding_name(name):
       tokens[i] = "*"
   return ".".join(tokens)
 
-def _make_weight_shard(weight_meta, slice_index):
-    # 1. Determine shape
-    shard_meta = weight_meta[slice_index]
-    
-    # 2. DETERMINISTIC SEEDING (Fix for silent failures)
-    # Python's hash() is randomized by default in Python 3.
-    # We use zlib.adler32 to ensure Host 0 and Host 1 generate same seed for same index.
-    tuple_bytes = str(tuple((s.start, s.stop, s.step) for s in slice_index)).encode('utf-8')
-    seed = zlib.adler32(tuple_bytes)
-    
-    log_msg(f"    - Init shard {slice_index} with seed {seed} (Shape: {shard_meta.shape})")
-    key = jax.random.PRNGKey(seed)
 
-    # 3. Dtype Mapping
-    dtype_map = {
-        torch.bfloat16: jnp.bfloat16,
-        torch.float16: jnp.float16,
-        torch.float32: jnp.float32,
-        torch.complex64: jnp.complex64, 
-        torch.complex128: jnp.complex128,
-    }
-    jax_dtype = dtype_map.get(shard_meta.dtype, jnp.bfloat16)
-
-    # 4. Generate directly on device
-    return jax.random.normal(key, shard_meta.shape, dtype=jax_dtype)
+# --- JIT COMPILED GENERATOR (Crucial for On-Device Performance) ---
+@functools.partial(jax.jit, static_argnames=['shape', 'dtype'])
+def _generate_shard_jit(key, shape, dtype):
+    # Generate standard normal noise directly on the device where 'key' resides
+    return jax.random.normal(key, shape=shape, dtype=dtype)
 
 
+# --- MANUAL ASSEMBLY: The "Bulletproof" Method for Multi-Slice ---
 def create_sharded_weights(model, mesh, sharding_map):
-  res = {}
-  env = torchax.default_env()
-  for name, weight_meta in model.state_dict().items():
-    sharding_spec = sharding_map.get(_process_sharding_name(name))
-    if sharding_spec is None:
-      print("Skipping weight:", name)
-      continue
-    sharding = NamedSharding(mesh, P(*sharding_spec))
-    print(f"Initializing weight {name} w shape={weight_meta.shape} dtype={weight_meta.dtype} sharding={sharding}....")
-    res[name] = env.j2t_iso(
-            jax.make_array_from_callback(
-                weight_meta.shape,
-                sharding,
-                functools.partial(_make_weight_shard, weight_meta),
+    res = {}
+    env = torchax.default_env()
+    
+    log_msg(f"Starting MANUAL sharded weights creation (On-Device Generation)...")
+    
+    # 1. Warmup JIT
+    # Prevents distributed timeout on first call
+    log_msg("Warming up RNG kernel...")
+    try:
+        warmup_key = jax.random.PRNGKey(0)
+        warmup_key = jax.device_put(warmup_key, jax.local_devices()[0])
+        _ = _generate_shard_jit(warmup_key, shape=(1024, 1024), dtype=jnp.bfloat16).block_until_ready()
+        log_msg("Warmup complete.")
+    except Exception as e:
+        log_msg(f"Warmup failed (non-critical): {e}")
+
+    for name, weight_meta in model.state_dict().items():
+        # Skip freqs_cis
+        if name == "freqs_cis":
+            continue
+
+        sharding_spec = sharding_map.get(name)
+        if sharding_spec is None:
+            sharding_spec = sharding_map.get(_process_sharding_name(name))
+            
+        if sharding_spec is None:
+            continue
+        
+        log_msg(f"Processing {name} | Spec: {sharding_spec}")
+        
+        try:
+            sharding = NamedSharding(mesh, P(*sharding_spec))
+            
+            # Get map of {Device -> Slice} for this host
+            device_to_slice = sharding.addressable_devices_indices_map(weight_meta.shape)
+            local_device_arrays = []
+            
+            # Iterate over local devices and generate shards IN-PLACE
+            for device, slice_index in device_to_slice.items():
+                # Deterministic seed per shard
+                tuple_bytes = str(tuple((s.start, s.stop, s.step) for s in slice_index)).encode('utf-8')
+                seed = zlib.adler32(tuple_bytes)
+                
+                # KEY PLACEMENT IS CRITICAL:
+                # Putting the key on 'device' forces _generate_shard_jit to execute on that specific TPU core.
+                # This avoids cross-device communication.
+                key = jax.random.PRNGKey(seed)
+                key = jax.device_put(key, device)
+                
+                if weight_meta.dtype == torch.bfloat16:
+                    jax_dtype = jnp.bfloat16
+                elif weight_meta.dtype == torch.float16:
+                    jax_dtype = jnp.float16
+                else:
+                    jax_dtype = jnp.float32
+                    
+                # Robust Shape Calculation (Fixing the 2**64 error)
+                shard_shape = []
+                for s, dim_size in zip(slice_index, weight_meta.shape):
+                    # Resolve 'slice(None)' to actual dimension size
+                    start, stop, step = s.indices(dim_size) 
+                    shard_shape.append(stop - start)
+                shard_shape = tuple(shard_shape)
+                
+                # GENERATE (Zero Transfer)
+                shard = _generate_shard_jit(key, shape=shard_shape, dtype=jax_dtype)
+                local_device_arrays.append(shard)
+            
+            # Metadata Assembly
+            # Stitch the existing on-device arrays into a global array
+            global_arr = jax.make_array_from_single_device_arrays(
+                weight_meta.shape, 
+                sharding, 
+                local_device_arrays
             )
-        )
-  return res
+            
+            # Sync to keep queue clean
+            global_arr.block_until_ready()
+            res[name] = env.j2t_iso(global_arr)
+            
+            # Clean refs
+            del local_device_arrays
+            
+        except Exception as e:
+            log_msg(f"CRASHED while making array for {name}: {e}")
+            traceback.print_exc()
+            raise e
+    
+    log_msg("Finished creating sharded weights.")
+    return res
+
 
 
 def fake_dataloader(size, seqlen, batch_size):
@@ -294,6 +355,10 @@ def main(
   tp_parallelism=1,
   train_steps=25,
 ):
+  # --- DIAGNOSIS: Enable Faulthandler ---
+  # This will dump a C++ stack trace if the process SEGFAULTS/Aborts
+  faulthandler.enable()
+    
   # 1. INIT DISTRIBUTED FIRST
   print(f"Process {os.getpid()} initializing JAX distributed...", flush=True)
   try:
@@ -305,6 +370,15 @@ def main(
   torchax.enable_globally()
   torchax.enable_performance_mode()
 
+  # --- DIAGNOSIS: Mock torch.distributed ---
+  # Torchtitan often checks dist.is_initialized(). If we aren't using torch.distributed,
+  # we must ensure it doesn't accidentally try to access a process group.
+  if hasattr(torch.distributed, 'is_initialized'):
+      original_is_init = torch.distributed.is_initialized
+      def mocked_is_init():
+          # log_msg("Diagnosis: torchtitan checked dist.is_initialized()")
+          return False
+      torch.distributed.is_initialized = mocked_is_init
 
   num_global = jax.device_count()
   fsdp = num_global // tp_parallelism
@@ -346,15 +420,38 @@ def main(
   if override_num_layers > 0:
     args.n_layers = override_num_layers
 
-  log_msg("Creating Meta Model (Patched for scalability)...")
+
+  # --- DEBUG DIAGNOSIS (FIXED) ---
+  log_msg("Diagnosis: Running component check on Meta Device...")
+  with torch.device("meta"):
+      try:
+          # 1. Check TransformerBlock (Layer) creation 
+          # Corrected signature: (layer_id, args) for Llama3
+          try:
+              log_msg("  [..] Attempting single TransformerBlock init on Meta...")
+              _ = TransformerBlock(0, args)
+              log_msg("  [OK] TransformerBlock init on Meta")
+          except ImportError:
+              log_msg("  [SKIP] TransformerBlock class not imported directly")
+          except TypeError as e:
+              log_msg(f"  [FAIL] TransformerBlock signature mismatch: {e}")
+
+      except Exception as e:
+          log_msg(f"  [FAIL] Component check failed: {e}")
+          import traceback
+          traceback.print_exc()
+
+  # --- MODEL CREATION ---
+  log_msg("Creating Full Meta Model via Wrapper...")
+
   original_precompute = titan.Transformer._precompute_freqs_cis
   
   def dummy_precompute(self):
       # Returns a dummy tensor on meta device with correct shape/dtype
       # Avoids torch.polar/complex ops on meta backend
-      head_dim = self.params.dim // self.params.n_heads
+      head_dim = self.model_args.dim // self.model_args.n_heads
       return torch.empty(
-          self.params.max_seq_len, 
+          self.model_args.max_seq_len, 
           head_dim // 2, 
           dtype=torch.complex64, 
           device="meta"
@@ -367,8 +464,16 @@ def main(
   # nor enough CPU memory to hold the parameters. We instantiate
   # the model on meta then manually initialize then shard each param
   torch.set_default_dtype(torch.bfloat16)
-  with torch.device("meta"):
-    gpt = titan.Transformer(args)
+
+  log_msg("Creating Full Meta Model (Patched for scalability)...")
+  try:
+    with torch.device("meta"):
+      gpt = titan.Transformer(args)
+    log_msg("Full Meta Model created successfully.")
+  except Exception as e:
+    log_msg(f"CRITICAL FAILURE during Model Init: {e}")
+    traceback.print_exc()
+    sys.exit(1)
 
   log_msg(f'Model initialized with {sum(p.numel() for p in gpt.parameters())/1e9:.2f} B parameters.')
 
@@ -378,7 +483,7 @@ def main(
 
   with torch.device("cpu"):
     # need actual value for freqs_cis
-    freqs_cis = gpt._precompute_freqs_cis()
+    real_freqs = gpt._precompute_freqs_cis()
 
   if use_scan:
     checkpoint_policy = jax.checkpoint_policies.offload_dot_with_no_batch_dims(
@@ -392,7 +497,11 @@ def main(
   state_dict = create_sharded_weights(gpt, mesh, sharding_map)
   replicated = jax.sharding.NamedSharding(mesh, P())
 
-  state_dict["freqs_cis"] = freqs_cis.to("jax").apply_jax(jax.device_put, replicated)
+  state_dict["freqs_cis"] = real_freqs.to("cpu").numpy()
+  state_dict["freqs_cis"] = jax.device_put(state_dict["freqs_cis"], replicated)
+  state_dict["freqs_cis"] = env.j2t_iso(state_dict["freqs_cis"])
+
+  # state_dict["freqs_cis"] = freqs_cis.to("jax").apply_jax(jax.device_put, replicated)
   gpt.load_state_dict(state_dict, assign=True)
 
   train_loader = fake_dataloader(train_steps, seqlen, batch_size)
