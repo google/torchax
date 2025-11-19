@@ -18,6 +18,7 @@ import logging
 from typing import Tuple
 from collections import defaultdict
 import functools
+import numpy as np
 import torch
 import torch.nn.functional
 from torch.utils import _pytree as pytree
@@ -362,11 +363,29 @@ def main(
 ):
   torchax.enable_globally()
   torchax.enable_performance_mode()
-  # logging.getLogger("jax").setLevel(logging.DEBUG)
-  print(f"Running with parameters {locals()}")
+  
+  if jax.process_count() == 1:
+      print("Attempting jax.distributed.initialize()...")
+      jax.distributed.initialize()
+      print("Distributed init success.")
 
-  fsdp = num_global_devices // tp_parallelism
-  mesh = jax.make_mesh((fsdp, tp_parallelism), ("fsdp", "tp"))
+  print(f"Global Device Count: {jax.device_count()}")
+  print(f"Local Device Count:  {jax.local_device_count()}")
+  print(f"Process Count:       {jax.process_count()}")
+
+  num_devices = jax.device_count()
+  fsdp = num_devices // tp_parallelism
+  
+  devices = jax.devices()
+  
+  if len(devices) != fsdp * tp_parallelism:
+      raise ValueError(f"Device mismatch! JAX sees {len(devices)}, expected {fsdp*tp_parallelism}")
+  
+  device_array = np.array(devices).reshape(fsdp, tp_parallelism)
+  mesh = jax.sharding.Mesh(device_array, ("fsdp", "tp"))
+  
+  print(f"Mesh successfully created: {mesh}")
+
   if use_scan:
     # using scan the individial weights will have shape (num_layers, w, h)
     sharding_map = sharding_map_scan
