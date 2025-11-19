@@ -15,6 +15,7 @@
 import os
 import time
 import logging
+import zlib
 from typing import Tuple
 from collections import defaultdict
 import functools
@@ -41,11 +42,18 @@ from torchtitan.models.llama3.model import model as titan
 
 P = jax.sharding.PartitionSpec
 
-num_global_devices = jax.device_count()
-num_local_devices = jax.local_device_count()
+# --- LOGGING HELPER ---
+def log_msg(msg):
+    """Logs on ALL processes to ensure errors on workers are seen."""
+    # Including process index helps debug which host is doing what or failing
+    print(f"[Proc {jax.process_index()}] {msg}", flush=True)
 
 
 def sharded_device_put(tensor: jax.Array, sharding) -> jax.Array:
+
+  num_global_devices = jax.device_count()
+  num_local_devices = jax.local_device_count()
+
   if isinstance(tensor, tuple):
     return tuple(sharded_device_put(t, sharding) for t in tensor)
 
@@ -80,98 +88,19 @@ sharding_map_original = {
 }
 
 sharding_map_scan = {
-  "freqs_cis": (),  #  torch.complex64 (2048, 64)
-  # ParallelEmbedding for llama2; VocabParallelEmbedding for 3
-  "tok_embeddings.weight": ("tp", "fsdp"),  #  torch.float32 (vocab_size, 4096)
-  "layers.params.attention___wo___weight": (
-    None,
-    "fsdp",
-    "tp",
-  ),  #  torch.int8 (n, 4096, 4096)
-  "layers.params.attention___wq___weight": (
-    None,
-    "tp",
-    "fsdp",
-  ),  #  torch.int8 (n, 4096, 4096)
-  "layers.params.attention___wk___weight": (
-    None,
-    "tp",
-    "fsdp",
-  ),  #  torch.int8 (n, 4096, 4096)
-  "layers.params.attention___wv___weight": (
-    None,
-    "tp",
-    "fsdp",
-  ),  #  torch.int8 (n, 4096, 4096)
-  "layers.params.feed_forward___w1___weight": (
-    None,
-    "tp",
-    "fsdp",
-  ),  #  torch.float32 (n, 11008, 4096)
-  "layers.params.feed_forward___w2___weight": (
-    None,
-    "fsdp",
-    "tp",
-  ),  #  torch.float32 (n, 4096, 11008)
-  "layers.params.feed_forward___w3___weight": (
-    None,
-    "tp",
-    "fsdp",
-  ),  #  torch.float32 (n, 11008, 4096)
-  "layers.params.attention_norm___weight": (
-    None,
-    "fsdp",
-  ),  #  torch.float32 (n, 4096,)
-  "layers.params.ffn_norm___weight": (
-    None,
-    "fsdp",
-  ),  #  torch.float32 (n, 4096,)
-  "norm.weight": ("fsdp",),  #  torch.float32 (4096,)
-  "output.weight": ("tp", "fsdp"),  #  torch.float32 (vocab_size, 4096)
-}
-
-sharding_map_scan_fsdp = {
-  "freqs_cis": (),  #  torch.complex64 (2048, 64)
-  # ParallelEmbedding for llama2; VocabParallelEmbedding for 3
-  "tok_embeddings.weight": ("fsdp",),  #  torch.float32 (vocab_size, 4096)
-  "layers.params.attention___wo___weight": (
-    None,
-    "fsdp",
-  ),  #  torch.int8 (n, 4096, 4096)
-  "layers.params.attention___wq___weight": (
-    None,
-    "fsdp",
-  ),  #  torch.int8 (n, 4096, 4096)
-  "layers.params.attention___wk___weight": (
-    None,
-    "fsdp",
-  ),  #  torch.int8 (n, 4096, 4096)
-  "layers.params.attention___wv___weight": (
-    None,
-    "fsdp",
-  ),  #  torch.int8 (n, 4096, 4096)
-  "layers.params.feed_forward___w1___weight": (
-    None,
-    "fsdp",
-  ),  #  torch.float32 (n, 11008, 4096)
-  "layers.params.feed_forward___w2___weight": (
-    None,
-    "fsdp",
-  ),  #  torch.float32 (n, 4096, 11008)
-  "layers.params.feed_forward___w3___weight": (
-    None,
-    "fsdp",
-  ),  #  torch.float32 (n, 11008, 4096)
-  "layers.params.attention_norm___weight": (
-    None,
-    "fsdp",
-  ),  #  torch.float32 (n, 4096,)
-  "layers.params.ffn_norm___weight": (
-    None,
-    "fsdp",
-  ),  #  torch.float32 (n, 4096,)
-  "norm.weight": ("fsdp",),  #  torch.float32 (4096,)
-  "output.weight": ("fsdp",),  #  torch.float32 (vocab_size, 4096)
+  "freqs_cis": (),
+  "tok_embeddings.weight": ("tp", "fsdp"),
+  "layers.params.attention___wo___weight": (None, "fsdp", "tp"),
+  "layers.params.attention___wq___weight": (None, "tp", "fsdp"),
+  "layers.params.attention___wk___weight": (None, "tp", "fsdp"),
+  "layers.params.attention___wv___weight": (None, "tp", "fsdp"),
+  "layers.params.feed_forward___w1___weight": (None, "tp", "fsdp"),
+  "layers.params.feed_forward___w2___weight": (None, "fsdp", "tp"),
+  "layers.params.feed_forward___w3___weight": (None, "tp", "fsdp"),
+  "layers.params.attention_norm___weight": (None, "fsdp"),
+  "layers.params.ffn_norm___weight": (None, "fsdp"),
+  "norm.weight": ("fsdp",),
+  "output.weight": ("tp", "fsdp"),
 }
 
 
@@ -228,13 +157,18 @@ class Trainer:
       current_batch_size, current_seq_len = inputs.shape[0], inputs.shape[1]
       tokens_this_step = current_batch_size * current_seq_len
 
-      # Move them to jax device
-      inputs = inputs.to("jax")
-      labels = labels.to("jax")
+      # Sharding input data
+      # Ensure inputs are on CPU before calling sharded_device_put to avoid OOM on device 0
+      if inputs.device.type != 'cpu':
+          inputs = inputs.cpu()
+      if labels.device.type != 'cpu':
+          labels = labels.cpu()
 
-      # Shard them on batch dim for fsdp
-      inputs.apply_jax_(sharded_device_put, self.x_sharding)
-      labels.apply_jax_(sharded_device_put, self.x_sharding)
+      jax_inputs = sharded_device_put(inputs.numpy(), self.x_sharding)
+      jax_labels = sharded_device_put(labels.numpy(), self.x_sharding)
+
+      inputs = torch_view(jax_inputs)
+      labels = torch_view(jax_labels)
 
       if i == 0:
         train_step = helper.compile_step_func(
@@ -299,21 +233,21 @@ def _process_sharding_name(name):
   return ".".join(tokens)
 
 def _make_weight_shard(weight_meta, slice_index):
-    # 1. Determine the specific shape for this shard
+    # 1. Determine shape
     shard_meta = weight_meta[slice_index]
-    print(f".... working on shard at index={slice_index} with shape={shard_meta.shape}")
-
-    # 2. Deterministic Seeding:
-    # Generate a unique random key based on the slice_index.
-    # This ensures every device initializes with different noise (or same if desired).
-    # Note: Converting slice_index to a stable hash integer for seeding.
-    seed = hash(tuple((s.start, s.stop, s.step) for s in slice_index)) % (2**31 - 1)
+    
+    # 2. DETERMINISTIC SEEDING (Fix for silent failures)
+    # Python's hash() is randomized by default in Python 3.
+    # We use zlib.adler32 to ensure Host 0 and Host 1 generate same seed for same index.
+    tuple_bytes = str(tuple((s.start, s.stop, s.step) for s in slice_index)).encode('utf-8')
+    seed = zlib.adler32(tuple_bytes)
+    
+    log_msg(f"    - Init shard {slice_index} with seed {seed} (Shape: {shard_meta.shape})")
     key = jax.random.PRNGKey(seed)
 
-    # 3. Handle Dtype Mapping (Torch -> JAX)
-    # Ensure we allocate directly in bfloat16 if the model is bfloat16
+    # 3. Dtype Mapping
     dtype_map = {
-      torch.bfloat16: jnp.bfloat16,
+        torch.bfloat16: jnp.bfloat16,
         torch.float16: jnp.float16,
         torch.float32: jnp.float32,
         torch.complex64: jnp.complex64, 
@@ -321,8 +255,7 @@ def _make_weight_shard(weight_meta, slice_index):
     }
     jax_dtype = dtype_map.get(shard_meta.dtype, jnp.bfloat16)
 
-    # 4. Generate directly on the device using JAX
-    # This allocates ONLY the memory needed for the shard, directly on XLA/TPU
+    # 4. Generate directly on device
     return jax.random.normal(key, shard_meta.shape, dtype=jax_dtype)
 
 
@@ -361,30 +294,36 @@ def main(
   tp_parallelism=1,
   train_steps=25,
 ):
+  # 1. INIT DISTRIBUTED FIRST
+  print(f"Process {os.getpid()} initializing JAX distributed...", flush=True)
+  try:
+      jax.distributed.initialize()
+      print(f"Process {os.getpid()} JAX distributed initialized.", flush=True)
+  except Exception as e:
+      print(f"JAX distributed init skipped/failed (Normal for single host): {e}", flush=True)
+
   torchax.enable_globally()
   torchax.enable_performance_mode()
-  
-  if jax.process_count() == 1:
-      print("Attempting jax.distributed.initialize()...")
-      jax.distributed.initialize()
-      print("Distributed init success.")
 
-  print(f"Global Device Count: {jax.device_count()}")
-  print(f"Local Device Count:  {jax.local_device_count()}")
-  print(f"Process Count:       {jax.process_count()}")
 
-  num_devices = jax.device_count()
-  fsdp = num_devices // tp_parallelism
+  num_global = jax.device_count()
+  fsdp = num_global // tp_parallelism
   
+  log_msg(f"Global Devices: {num_global}, Local Devices: {jax.local_device_count()}, Process: {jax.process_count()}")
+  log_msg(f"Mesh Config: FSDP={fsdp}, TP={tp_parallelism}")
+
+  # 2. MANUAL MESH CREATION (Fix for Mesh Utils Crash)
+  # Using raw reshape is safer for multi-slice than mesh_utils
   devices = jax.devices()
   
+  # Safety check to prevent silent reshaping errors
   if len(devices) != fsdp * tp_parallelism:
-      raise ValueError(f"Device mismatch! JAX sees {len(devices)}, expected {fsdp*tp_parallelism}")
+      raise ValueError(f"Total devices ({len(devices)}) must match FSDP*TP ({fsdp}*{tp_parallelism})")
+
+  device_mesh_array = np.array(devices).reshape(fsdp, tp_parallelism)
+  mesh = jax.sharding.Mesh(device_mesh_array, ("fsdp", "tp"))
   
-  device_array = np.array(devices).reshape(fsdp, tp_parallelism)
-  mesh = jax.sharding.Mesh(device_array, ("fsdp", "tp"))
-  
-  print(f"Mesh successfully created: {mesh}")
+  log_msg("Mesh successfully created.")
 
   if use_scan:
     # using scan the individial weights will have shape (num_layers, w, h)
@@ -392,11 +331,14 @@ def main(
   else:
     sharding_map = sharding_map_original
 
+  log_msg(f"Jialei: creating env")
   env = torchax.default_env()
   env.config.use_tpu_flash_attention = True
   env.config.shmap_flash_attention = True
   env._mesh = mesh  # this is the mesh used by flash attention pallas kernel
 
+
+  log_msg(f"Jialei: creating args")
   args = llama3_args[model_type]
   # Note: torchtitan's upstream config did not specify this value
   args.vocab_size = 128256
@@ -404,13 +346,35 @@ def main(
   if override_num_layers > 0:
     args.n_layers = override_num_layers
 
+  log_msg("Creating Meta Model (Patched for scalability)...")
+  original_precompute = titan.Transformer._precompute_freqs_cis
+  
+  def dummy_precompute(self):
+      # Returns a dummy tensor on meta device with correct shape/dtype
+      # Avoids torch.polar/complex ops on meta backend
+      head_dim = self.params.dim // self.params.n_heads
+      return torch.empty(
+          self.params.max_seq_len, 
+          head_dim // 2, 
+          dtype=torch.complex64, 
+          device="meta"
+      )
+
+  # Apply patch
+  titan.Transformer._precompute_freqs_cis = dummy_precompute
+    
   # Note: because a single device don't have enough HBM memory
   # nor enough CPU memory to hold the parameters. We instantiate
   # the model on meta then manually initialize then shard each param
   torch.set_default_dtype(torch.bfloat16)
   with torch.device("meta"):
     gpt = titan.Transformer(args)
-  print(f'Model initialized with {sum(p.numel() for p in gpt.parameters())/1e9:.2f} B parameters.')
+
+  log_msg(f'Model initialized with {sum(p.numel() for p in gpt.parameters())/1e9:.2f} B parameters.')
+
+  # Restore original method immediately
+  titan.Transformer._precompute_freqs_cis = original_precompute
+  log_msg("Meta model created. Computing real freqs_cis on CPU...")
 
   with torch.device("cpu"):
     # need actual value for freqs_cis
@@ -422,6 +386,7 @@ def main(
     )
     gpt = TransfomerWithScan(gpt, checkpoint_policy)
 
+  log_msg(f"Jialei: creating weights")
   state_dict = dict(gpt.state_dict())
   state_dict.pop("freqs_cis")  # dont shard freqs_cis
   state_dict = create_sharded_weights(gpt, mesh, sharding_map)
@@ -432,6 +397,7 @@ def main(
 
   train_loader = fake_dataloader(train_steps, seqlen, batch_size)
 
+  log_msg(f"Jialei: creating attention override")
   # NOTE: overriding attention to capture mesh and sharding info
   partition = P("fsdp", "tp", None, None)
   attention = functools.partial(splash_attn.tpu_splash_attention, mesh, partition, True)
@@ -452,6 +418,7 @@ def main(
     res = attention(jk, jq, jv, None)
     return torch_view(res)
 
+  log_msg(f"Jialei: actually creating attention override")
   env.override_op_definition(
     torch.nn.functional.scaled_dot_product_attention, custom_attention
   )
@@ -462,6 +429,7 @@ def main(
     y = y.reshape(-1)
     return torch.nn.functional.cross_entropy(logits, y)
 
+  log_msg(f"Jialei: start training")
   with mesh:
     trainer = Trainer(mesh)
     return trainer.fit(gpt, loss_fn, train_loader)
@@ -505,5 +473,9 @@ class TransfomerWithScan(torch.nn.Module):
 
 if __name__ == "__main__":
   import fire
-
-  fire.Fire(main)
+  try:
+      fire.Fire(main)
+  except Exception:
+      # Catch crash and print traceback to stderr so it appears in logs
+      traceback.print_exc(file=sys.stderr)
+      sys.exit(1)
