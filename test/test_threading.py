@@ -13,9 +13,8 @@
 # limitations under the License.
 
 import threading
-import unittest
-
 import torchax
+import unittest
 
 class TestThreading(unittest.TestCase):
 
