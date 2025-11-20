@@ -1,7 +1,19 @@
--f https://download.pytorch.org/whl/torch
-torch==2.8.0 ; sys_platform == 'darwin'  # macOS
-torch==2.8.0+cpu; sys_platform != 'darwin' # Non-macOS (CPU-only), like on TPU
-yapf==0.40.2  # N.B.: keep in sync with `infra/ansible/config/pip.yaml`, `.github/workflows/lintercheck.yml`
-ruff>=0.9.0  # Linter and formatter
-flax==0.10.6
-jax==0.7.2
+# Development Requirements (Legacy)
+
+**Note**: This file is kept for backward compatibility. 
+New development should use:
+```bash
+make dev
+# or
+uv pip install -e ".[cpu,dev,test,docs]"
+```
+
+See `pyproject.toml` for the canonical list of dependencies organized by group:
+- `[project.optional-dependencies.dev]` - Development tools
+- `[project.optional-dependencies.test]` - Testing dependencies
+- `[project.optional-dependencies.docs]` - Documentation tools
+
+For hardware-specific dependencies, see:
+- `[project.optional-dependencies.cpu]` - CPU backend
+- `[project.optional-dependencies.cuda]` - CUDA backend
+- `[project.optional-dependencies.tpu]` - TPU backend
