@@ -19,7 +19,6 @@ import torchax
 
 
 class TestThreading(unittest.TestCase):
-
   def test_access_config_thread(reraise):
     torchax.default_env()
 
@@ -35,6 +34,7 @@ class TestThreading(unittest.TestCase):
 
     for thread in threads:
       thread.join()
+
 
 if __name__ == "__main__":
   unittest.main()
