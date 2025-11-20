@@ -32,7 +32,7 @@ import jax
 import jax.numpy as jnp
 from jax.experimental import shard_map
 from jax.experimental import mesh_utils
-from jax.sharding import NamedSharding
+from jax.sharding import Mesh, NamedSharding
 import optax
 
 from torchtitan.models.llama3 import llama3_args
@@ -360,13 +360,27 @@ def main(
   tp_parallelism=1,
   train_steps=25,
 ):
+
   torchax.enable_globally()
   torchax.enable_performance_mode()
   # logging.getLogger("jax").setLevel(logging.DEBUG)
-  print(f"Running with parameters {locals()}")
+
+  print(f"Running with parameters {locals()}", flush=True)
+
+  num_pod = jax.process_count()
+  print(f"Global Devices: {num_global_devices}, Local Devices: {num_local_devices}, Process: {num_pod}", flush=True)
 
   fsdp = num_global_devices // tp_parallelism
-  mesh = jax.make_mesh((fsdp, tp_parallelism), ("fsdp", "tp"))
+
+  # mesh = jax.make_mesh((fsdp, tp_parallelism), ("fsdp", "tp"))
+
+  dev_array = jax.experimental.mesh_utils.create_hybrid_device_mesh(
+    (fsdp // num_pod, tp_parallelism), (num_pod, 1), jax.devices(), process_is_granule=True, allow_split_physical_axes=True
+  )
+  mesh = Mesh(dev_array, ("fsdp", "tp"))
+
+  print(f"{mesh=} | {dev_array=}", flush=True)
+
   if use_scan:
     # using scan the individial weights will have shape (num_layers, w, h)
     sharding_map = sharding_map_scan
