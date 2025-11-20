@@ -17,6 +17,7 @@ import unittest
 
 import torchax
 
+
 class TestThreading(unittest.TestCase):
 
   def test_access_config_thread(reraise):
