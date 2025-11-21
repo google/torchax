@@ -40,9 +40,9 @@ WORKDIR /torchtitan
 RUN pip install -r requirements.txt
 RUN pip install .
 
-WORKDIR /
-RUN git clone https://github.com/google/torchax.git
+# --- TORCHAX (Changed to use LOCAL copy) ---
 WORKDIR /torchax
+COPY . .
 RUN pip install -e .
 
 ENTRYPOINT ["python", "examples/train_llama_torchtitan/train_llama.py"]
