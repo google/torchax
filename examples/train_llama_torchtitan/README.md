@@ -45,7 +45,7 @@ Tested locally on v6e-8 doesnt seems to make a difference.
 
 ```bash
 cd ~/torchax/examples/train_llama_torchtitan
-python train_llama.py --seqlen=8192
+python train_llama.py --seqlen=4096 --batch_size=24
 ```
 
 llama-3 8B training on TPU v6e-4 leads to following performance number:
