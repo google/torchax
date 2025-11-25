@@ -205,9 +205,7 @@ class Trainer:
       model_fn,
       loss_fn,
       jax_optimizer,
-      remat_policy=jax.checkpoint_policies.offload_dot_with_no_batch_dims(
-        "device", "pinned_host"
-      ),
+      remat_policy=jax.checkpoint_policies.nothing_saveable,
     )
 
     # Metrics tracking
@@ -300,7 +298,7 @@ def _process_sharding_name(name):
 def _make_weight_shard(weight_meta, slice_index):
     # 1. Determine the specific shape for this shard
     shard_meta = weight_meta[slice_index]
-    print(f".... working on shard at index={slice_index} with shape={shard_meta.shape}")
+    # print(f".... working on shard at index={slice_index} with shape={shard_meta.shape}")
 
     # 2. Deterministic Seeding:
     # Generate a unique random key based on the slice_index.
@@ -359,6 +357,7 @@ def main(
   use_scan=True,
   tp_parallelism=1,
   train_steps=25,
+  tpu_num_slices=1,
 ):
 
   torchax.enable_globally()
@@ -367,19 +366,23 @@ def main(
 
   print(f"Running with parameters {locals()}", flush=True)
 
-  num_pod = jax.process_count()
-  print(f"Global Devices: {num_global_devices}, Local Devices: {num_local_devices}, Process: {num_pod}", flush=True)
+  num_hosts = jax.process_count()
+
+  print(f"Global Devices: {num_global_devices}, Local Devices: {num_local_devices}, Hosts: {num_hosts}, Slices: {tpu_num_slices}", flush=True)
 
   fsdp = num_global_devices // tp_parallelism
 
-  # mesh = jax.make_mesh((fsdp, tp_parallelism), ("fsdp", "tp"))
+  print(f"Using FSDP parallelism: {fsdp}, TP parallelism: {tp_parallelism}", flush=True)
 
-  dev_array = jax.experimental.mesh_utils.create_hybrid_device_mesh(
-    (fsdp // num_pod, tp_parallelism), (num_pod, 1), jax.devices(), process_is_granule=True, allow_split_physical_axes=True
-  )
-  mesh = Mesh(dev_array, ("fsdp", "tp"))
+  if tpu_num_slices == 1:
+    mesh = jax.make_mesh((fsdp, tp_parallelism), ("fsdp", "tp"))
+  else:
+    dev_array = jax.experimental.mesh_utils.create_hybrid_device_mesh(
+      (fsdp // tpu_num_slices, tp_parallelism), (tpu_num_slices, 1), jax.devices(), process_is_granule=False, allow_split_physical_axes=True
+    )
+    mesh = Mesh(dev_array, ("fsdp", "tp"))
 
-  print(f"{mesh=} | {dev_array=}", flush=True)
+  print(f"Using mesh {mesh=}", flush=True)
 
   if use_scan:
     # using scan the individial weights will have shape (num_layers, w, h)
@@ -412,9 +415,7 @@ def main(
     freqs_cis = gpt._precompute_freqs_cis()
 
   if use_scan:
-    checkpoint_policy = jax.checkpoint_policies.offload_dot_with_no_batch_dims(
-      "device", "pinned_host"
-    )
+    checkpoint_policy = jax.checkpoint_policies.nothing_saveable
     gpt = TransfomerWithScan(gpt, checkpoint_policy)
 
   state_dict = dict(gpt.state_dict())

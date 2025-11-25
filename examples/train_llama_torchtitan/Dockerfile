@@ -27,18 +27,22 @@ RUN curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key --keyri
 # Install the Google Cloud SDK
 RUN apt-get update && apt-get install -y google-cloud-sdk git
 
-# Set the default Python version to 3.10
-# RUN update-alternatives --install /usr/bin/python3 python3 /usr/local/bin/python3.10 1
-RUN pip install jax[tpu] -f https://storage.googleapis.com/jax-releases/libtpu_releases.html
+
+# RUN pip install jax[tpu] -f https://storage.googleapis.com/jax-releases/libtpu_releases.html
+
+RUN pip install libtpu==0.0.31.dev20251119+nightly -f "https://storage.googleapis.com/jax-releases/libtpu_releases.html"
+RUN pip install --pre jax==0.8.1 jaxlib==0.8.1 --index https://us-python.pkg.dev/ml-oss-artifacts-published/jax/simple/
+
 RUN pip install optax fire flax triton 
 RUN pip install tensorflow tensorboard-plugin-profile
 RUN pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+RUN pip install torchtitan==0.2.0
 
-WORKDIR /
-RUN git clone https://github.com/pytorch/torchtitan.git
-WORKDIR /torchtitan
-RUN pip install -r requirements.txt
-RUN pip install .
+# WORKDIR /
+# RUN git clone https://github.com/pytorch/torchtitan.git
+# WORKDIR /torchtitan
+# RUN pip install -r requirements.txt
+# RUN pip install .
 
 # --- TORCHAX (Changed to use LOCAL copy) ---
 WORKDIR /torchax
