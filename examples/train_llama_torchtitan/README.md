@@ -45,12 +45,12 @@ Tested locally on v6e-8 doesnt seems to make a difference.
 
 ```bash
 cd ~/torchax/examples/train_llama_torchtitan
-python train_llama.py --seqlen=8192
+python train_llama.py --seqlen=4096 --batch_size=24
 ```
 
 llama-3 8B training on TPU v6e-4 leads to following performance number:
-- throughput: ~ 5000 tokens / second / chip
-- MFU: ~27%
+- throughput: ~ 7000 tokens / second / chip
+- MFU: ~37%
 
 ## We also provide a Dockerfile for easy setup. Simply run:
 ```bash
@@ -61,6 +61,67 @@ docker run --rm -it --privileged --net=host \
   -e PJRT_DEVICE=TPU \
   my_torchax_image:latest
 ```
+
+## We can also run job with GKE/XPK cluster
+
+You may need to create a GKE cluster following instruction from [XPK](https://github.com/AI-Hypercomputer/xpk?tab=readme-ov-file#prerequisites).
+
+Set the following environment variables according to your cluster setup:
+```
+export PROJECT=xxxx
+export REGION=xxxx
+export ZONE=xxxxx
+export CLUSTER_NAME=xxxxx
+export DEVICE_TYPE=tpu7x-128
+
+export IMAGE_NAME=${USER}_torchax_runner
+export IMAGE_TAG=latest
+```
+
+Build and push the docker image for the training job:
+```
+docker buildx build --push --platform linux/amd64 -f examples/train_llama_torchtitan/Dockerfile -t gcr.io/${PROJECT}/${IMAGE_NAME}:${IMAGE_TAG} .
+```
+
+For larger jobs, we suggest to set the following XLA flags (see [JAX recipes](https://github.com/AI-Hypercomputer/tpu-recipes/tree/main/training/ironwood)) to improve performance:
+```
+export XLA_FLAGS=" \
+  --xla_tpu_impure_enable_packed_bf16_math_ops=true \
+  --xla_tpu_enable_sparse_core_reduce_scatter_v2=true \
+  --xla_tpu_use_single_sparse_core_for_all_gather_offload=true \
+  --xla_tpu_enable_sparse_core_collective_offload_all_gather=true \
+  --xla_tpu_enable_sparse_core_collective_offload_2d_all_gather=true \
+  --xla_tpu_enable_sparse_core_collective_offload_3d_all_gather=true \
+  --xla_tpu_enable_all_gather_offload_tracing=true \
+  --xla_tpu_use_tc_device_shape_on_sc=True \
+  --xla_sc_disable_megacore_partitioning=True \
+  --xla_tpu_enable_async_collective_fusion_fuse_all_gather=false \
+  --xla_enable_async_all_gather=true \
+  --xla_tpu_prefer_async_allgather_to_allreduce=true \
+  --xla_tpu_enable_sparse_core_collective_offload_all_reduce=true \
+  --xla_tpu_enable_sparse_core_collective_offload_reduce_scatter=true \
+  --xla_tpu_scoped_vmem_limit_kib=65536 "
+```
+
+Finially submit the training job to the cluster with `xpk` CLI:
+```
+xpk workload create \
+  --cluster=$CLUSTER_NAME \
+  --project=$PROJECT \
+  --zone=$ZONE \
+  --device-type=$DEVICE_TYPE \
+  --num-slices=1 \
+  --docker-image="gcr.io/${PROJECT}/${IMAGE_NAME}:${IMAGE_TAG}" \
+  --workload="jialeic-torchax-$(date +%Y%m%d-%H%M%S)" \
+  --command="export LIBTPU_INIT_ARGS='${XLA_FLAGS}' && \
+export JAX_PLATFORMS='tpu,cpu' && export ENABLE_PJRT_COMPATIBILITY='true' && \
+python3 examples/train_llama_torchtitan/train_llama.py --model_type=405B --batch_size=384 --seqlen=4096"
+```
+
+The above command will launch a training job for llama-3 405B model with
+batch size 384 and sequence length 4096 on a TPU v7-128 cluster.
+
+Resulting throughput is around ~ 493.2 tokens/s/chip with MFU ~ 52%. These matches [benchmarks](https://github.com/AI-Hypercomputer/tpu-recipes/blob/main/training/ironwood/README.md) with native jax implementation.
 
 ## Detailed Code walkthrough:
 
