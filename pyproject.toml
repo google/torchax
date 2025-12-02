@@ -107,6 +107,7 @@ train = [
 ]
 
 # All dependencies for complete development setup
+# Note: Install torch separately due to platform-specific builds
 all = [
     "torchax[dev,test,docs,train]",
 ]

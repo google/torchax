@@ -42,13 +42,13 @@ install-test:
 
 lint:
 	@echo "Running ruff check..."
-	@uv run ruff check torchax test test_dist
+	@ruff check torchax test test_dist
 	@echo "✓ Linting passed!"
 
 format:
 	@echo "Formatting code with ruff..."
-	@uv run ruff check torchax test test_dist --fix
-	@uv run ruff format torchax test test_dist
+	@ruff check torchax test test_dist --fix
+	@ruff format torchax test test_dist
 	@echo "✓ Code formatted!"
 
 # === Testing ===
