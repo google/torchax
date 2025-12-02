@@ -82,21 +82,21 @@ install-tpu:
 
 lint:
 	@echo "$(ORANGE)1. ==== Ruff format ====$(RESET)"
-	@$(UV) run --no-project ruff format torchax test test_dist
+	@$(UV) tool run ruff format torchax test test_dist
 	@echo "$(ORANGE)2. ==== Ruff check & fix ====$(RESET)"
-	@$(UV) run --no-project ruff check torchax test test_dist --fix
+	@$(UV) tool run ruff check torchax test test_dist --fix
 	@echo "$(GREEN)✓ Code formatted and linted!$(RESET)"
 
 lint-check:
 	@echo "$(ORANGE)1. ==== Ruff format check ====$(RESET)"
-	@$(UV) run --no-project ruff format --check torchax test test_dist
+	@$(UV) tool run ruff format --check torchax test test_dist
 	@echo "$(ORANGE)2. ==== Ruff check ====$(RESET)"
-	@$(UV) run --no-project ruff check torchax test test_dist
+	@$(UV) tool run ruff check torchax test test_dist
 	@echo "$(GREEN)✓ Linting passed!$(RESET)"
 
 format:
 	@echo "$(ORANGE)Formatting code with ruff...$(RESET)"
-	@$(UV) run --no-project ruff format torchax test test_dist
+	@$(UV) tool run ruff format torchax test test_dist
 	@echo "$(GREEN)✓ Code formatted!$(RESET)"
 
 # === Testing ===

@@ -59,8 +59,8 @@ jobs:
           export JAX_PLATFORMS=cpu
           for FILE in $(find docs -name '*.py'); do
             export OUTFILE="${FILE%.*}.ipynb"
-            uv run --no-project jupytext --to ipynb $FILE -o "$OUTFILE"
-            uv run --no-project jupyter nbconvert --to notebook --execute $OUTFILE --output $(basename $OUTFILE)
+            uv tool run jupytext --to ipynb $FILE -o "$OUTFILE"
+            uv tool run jupyter nbconvert --to notebook --execute $OUTFILE --output $(basename $OUTFILE)
           done
 
       - name: Build documentation
