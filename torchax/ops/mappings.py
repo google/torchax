@@ -105,6 +105,7 @@ TORCH_DTYPE_TO_JAX = {
   torch.uint16: jnp.uint16.dtype,
   torch.uint32: jnp.uint32.dtype,
   torch.uint64: jnp.uint64.dtype,
+  torch.float4_e2m1fn_x2: jnp.float4_e2m1fn.dtype,
   # NO_MAPPING        : jnp.float8_e4m3b11fnuz.dtype,
   torch.float8_e4m3fn: jnp.float8_e4m3fn.dtype,
   # NO_MAPPING        : jnp.float8_e4m3fnuz.dtype,
