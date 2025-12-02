@@ -3,17 +3,15 @@
 # This Makefile provides convenient commands for development.
 # All commands use uv for fast, reliable dependency management.
 
-.PHONY: help install dev test test-all lint format clean build docs
+.PHONY: help install install-test test test-all lint format clean build docs
 
 # Default target
 help:
 	@echo "TorchAx Development Commands"
 	@echo ""
-	@echo "Setup & Installation:"
-	@echo "  make install          Install package with CPU backend"
-	@echo "  make dev              Install package with all dev dependencies"
-	@echo "  make install-cuda     Install with CUDA backend"
-	@echo "  make install-tpu      Install with TPU backend"
+	@echo "Setup & Installation (uses uv):"
+	@echo "  make install              Install for development (flexible versions)"
+	@echo "  make install-test         Install with pinned test versions (like CI)"
 	@echo ""
 	@echo "Development:"
 	@echo "  make lint             Run linters (ruff check)"
@@ -21,7 +19,6 @@ help:
 	@echo "  make test             Run unit tests (file-by-file like CI)"
 	@echo "  make test-fast        Run unit tests (parallel, faster)"
 	@echo "  make test-all         Run all tests (unit + distributed + tutorials)"
-	@echo "  make test-gemma       Run gemma tests"
 	@echo ""
 	@echo "Cleaning:"
 	@echo "  make clean            Clean build artifacts and caches"
@@ -34,16 +31,12 @@ help:
 # === Installation ===
 
 install:
-	uv pip install -e ".[cpu]"
+	@echo "Installing with flexible versions for development..."
+	uv pip install -e ".[cpu,dev,docs]"
 
-dev:
-	uv pip install -e ".[cpu,dev,test,docs]"
-
-install-cuda:
-	uv pip install -e ".[cuda,dev,test]"
-
-install-tpu:
-	uv pip install -e ".[tpu,dev,test]"
+install-test:
+	@echo "Installing with pinned test versions (like CI)..."
+	pip install -e ".[test,docs]" --extra-index-url https://download.pytorch.org/whl/cpu
 
 # === Linting & Formatting ===
 

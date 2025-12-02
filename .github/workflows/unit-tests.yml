@@ -42,7 +42,7 @@ jobs:
       - name: Install dependencies
         run: |
           source .venv/bin/activate
-          uv pip install -e ".[cpu,test,docs]"
+          make install-test
 
       - name: Run unit tests
         run: |

@@ -3,14 +3,14 @@
 **Note**: This file is kept for backward compatibility. 
 New development should use:
 ```bash
-make dev
+make install
 # or
-uv pip install -e ".[cpu,dev,test,docs]"
+uv pip install -e ".[cpu,dev,docs]"
 ```
 
 See `pyproject.toml` for the canonical list of dependencies organized by group:
-- `[project.optional-dependencies.dev]` - Development tools
-- `[project.optional-dependencies.test]` - Testing dependencies
+- `[project.optional-dependencies.dev]` - Development tools (flexible versions)
+- `[project.optional-dependencies.test]` - Testing dependencies (pinned versions)
 - `[project.optional-dependencies.docs]` - Documentation tools
 
 For hardware-specific dependencies, see:

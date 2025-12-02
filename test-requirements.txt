@@ -3,9 +3,9 @@
 **Note**: This file is kept for backward compatibility.
 New development should use:
 ```bash
-make dev
+make install-test
 # or
-uv pip install -e ".[cpu,dev,test]"
+pip install -e ".[test,docs]" --extra-index-url https://download.pytorch.org/whl/cpu
 ```
 
 See `pyproject.toml` `[project.optional-dependencies.test]` for the canonical list of test dependencies.

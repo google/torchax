@@ -19,9 +19,8 @@ build-backend = "hatchling.build"
 [project]
 name = "torchax"
 dependencies = [
-    "jax[cpu]==0.7.2",
-    "torch==2.8.0 ; sys_platform == 'darwin'",  # macOS
-    "torch==2.8.0+cpu ; sys_platform != 'darwin'",  # Non-macOS (CPU-only)
+    "jax[cpu]>=0.6.2",  # Flexible - works with newer versions
+    "torch>=2.4.0",     # Flexible - works with newer versions
 ]
 requires-python = ">=3.11"
 license = {file = "LICENSE"}
@@ -58,21 +57,28 @@ classifiers = [
 path = "torchax/__init__.py"
 
 [project.optional-dependencies]
-# Hardware-specific backends
-cpu = ["jax[cpu]==0.7.2"]
-tpu = ["jax[tpu]==0.7.2"]  # Add index: https://storage.googleapis.com/libtpu-wheels/index.html
-cuda = ["jax[cuda12]==0.7.2"]
-odml = ["jax[cpu]==0.7.2"]
+# Hardware-specific backends (flexible versions)
+cpu = ["jax[cpu]>=0.6.2"]
+tpu = ["jax[tpu]>=0.6.2"]  # Add index: https://storage.googleapis.com/libtpu-wheels/index.html
+cuda = ["jax[cuda12]>=0.6.2"]
+odml = ["jax[cpu]>=0.6.2"]
 
-# Development dependencies
+# Development dependencies (flexible versions for latest features)
 dev = [
     "ruff>=0.9.0",
-    "yapf==0.40.2",
-    "flax==0.10.6",
+    "yapf>=0.40.0",
+    "flax>=0.10.0",
 ]
 
-# Test dependencies
+# Test dependencies (PINNED versions for reproducible CI)
 test = [
+    # Pinned PyTorch - platform specific
+    "torch==2.8.0 ; sys_platform == 'darwin'",      # macOS from PyPI
+    "torch==2.8.0+cpu ; sys_platform != 'darwin'",  # Linux from PyTorch index
+    # Other pinned versions
+    "jax[cpu]==0.7.2",
+    "flax==0.10.6",
+    # Test framework
     "pytest>=8.3.5",
     "pytest-xdist>=3.8.0",
     "pytest-reraise>=2.1.2",
@@ -82,7 +88,6 @@ test = [
     "expecttest>=0.3.0",
     "optax>=0.2.4",
     "termcolor>=2.0.0",
-    "flax>=0.10.6",  # Required by checkpoint.py
 ]
 
 # Documentation dependencies

@@ -26,9 +26,9 @@ uv venv --python 3.11
 source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 
 # Install with all development dependencies
-make dev
+make install
 # Or manually:
-# uv pip install -e ".[cpu,dev,test,docs]"
+# uv pip install -e ".[cpu,dev,docs]"
 
 # Run tests to verify setup
 make test
@@ -53,25 +53,28 @@ Development works great on Apple Silicon Macs:
 # Option 1: Using uv (recommended)
 uv venv --python 3.11
 source .venv/bin/activate
-make dev
+make install
 
 # Option 2: Using conda
 conda create --name torchax python=3.11
 conda activate torchax
-pip install -e ".[cpu,dev,test]"
+pip install -e ".[cpu,dev,docs]"
 ```
 
 ### Hardware-Specific Installation
 
 ```bash
-# CPU (default)
-uv pip install -e ".[cpu,dev,test]"
+# CPU (default - flexible versions for development)
+make install
+
+# CPU with pinned test versions (exactly like CI)
+make install-test
 
 # CUDA
-uv pip install -e ".[cuda,dev,test]"
+make install-cuda
 
 # TPU (requires additional setup)
-uv pip install -e ".[tpu,dev,test]"
+make install-tpu
 ```
 
 ## Development Workflow
@@ -185,13 +188,13 @@ Set the JAX platform explicitly:
 export JAX_PLATFORMS=cpu  # or cuda, tpu
 ```
 
-### Tests failing locally but passing in CI
+### If tests fail locally but passing in CI
 
 Make sure you have the latest dependencies:
 
 ```bash
 make clean
-make dev
+make install-test  # Use exact CI versions
 ```
 
 ## Documentation
