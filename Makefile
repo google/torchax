@@ -69,7 +69,7 @@ install:
 
 install-test:
 	@echo "$(ORANGE)Installing with pinned test versions (like CI)...$(RESET)"
-	@pip install -e ".[test,docs]" --extra-index-url https://download.pytorch.org/whl/cpu
+	@$(UV) pip install -e ".[test,docs]" --extra-index-url https://download.pytorch.org/whl/cpu
 	@echo "$(GREEN)✓ Installation complete!$(RESET)"
 
 install-cuda:
