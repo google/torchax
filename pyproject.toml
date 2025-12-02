@@ -83,12 +83,14 @@ test = [
     "pytest>=8.3.5",
     "pytest-xdist>=3.8.0",
     "pytest-reraise>=2.1.2",
+    "setuptools>=70.0.0",  # Required by torch.testing._internal
     "absl-py>=2.2.2",
     "immutabledict>=4.2.1",
     "sentencepiece>=0.2.0",
     "expecttest>=0.3.0",
     "optax>=0.2.4",
     "termcolor>=2.0.0",
+    "tensorboard>=2.15.0",
 ]
 
 # Documentation dependencies
