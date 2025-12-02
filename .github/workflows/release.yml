@@ -42,7 +42,9 @@ jobs:
         run: uv venv
 
       - name: Build package
-        run: make build
+        run: |
+          source .venv/bin/activate
+          make build
 
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1

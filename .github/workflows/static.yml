@@ -49,20 +49,24 @@ jobs:
 
       - name: Install dependencies
         run: |
+          source .venv/bin/activate
           uv pip install -e ".[cpu,docs]"
 
       - name: Generate notebooks
         working-directory: docs
         run: |
+          source ../.venv/bin/activate
           export JAX_PLATFORMS=cpu
           for FILE in $(find docs -name '*.py'); do
             export OUTFILE="${FILE%.*}.ipynb"
-            uv run jupytext --to ipynb $FILE -o "$OUTFILE"
-            uv run jupyter nbconvert --to notebook --execute $OUTFILE --output $(basename $OUTFILE)
+            uv run --no-project jupytext --to ipynb $FILE -o "$OUTFILE"
+            uv run --no-project jupyter nbconvert --to notebook --execute $OUTFILE --output $(basename $OUTFILE)
           done
 
       - name: Build documentation
-        run: make docs
+        run: |
+          source .venv/bin/activate
+          make docs
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3

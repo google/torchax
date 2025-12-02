@@ -32,12 +32,15 @@ jobs:
 
       - name: Patch version for Nightly
         run: |
-          uv run python scripts/update_to_nightly_version.py
+          source .venv/bin/activate
+          uv run --no-project python scripts/update_to_nightly_version.py
           # Verify the change (Debugging)
           grep "__version__" torchax/__init__.py
 
       - name: Build package
-        run: make build
+        run: |
+          source .venv/bin/activate
+          make build
 
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1

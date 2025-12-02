@@ -9,32 +9,49 @@ If you plan to contribute new features, utility functions or extensions to the c
 ### Prerequisites
 
 - Python 3.11 or higher
-- [uv](https://docs.astral.sh/uv/) (recommended) or pip
+- Git
 
-### Quick Start with uv (Recommended)
+### Quick Start (Recommended)
+
+The Makefile handles everything, including uv installation:
 
 ```bash
-# Install uv if you haven't already
-curl -LsSf https://astral.sh/uv/install.sh | sh
-
 # Clone the repository
 git clone https://github.com/google/torchax.git
 cd torchax
 
-# Create a virtual environment (optional but recommended)
+# Install uv locally (if not already in system)
+make install-uv
+
+# Create a virtual environment
 uv venv --python 3.11
 source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 
 # Install with all development dependencies
 make install
-# Or manually:
-# uv pip install -e ".[cpu,dev,docs]"
 
-# Run tests to verify setup
+# Verify setup
+make check-env
+
+# Run tests
 make test
 ```
 
-### Alternative Setup (without uv)
+### Alternative: System-wide uv
+
+If you prefer uv in your PATH:
+
+```bash
+# Install uv system-wide
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Then follow the same steps above
+uv venv --python 3.11
+source .venv/bin/activate
+make install
+```
+
+### Without uv (Traditional)
 
 ```bash
 # Create a virtual environment
@@ -42,7 +59,7 @@ python3.11 -m venv .venv
 source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 
 # Install the package in editable mode with dependencies
-pip install -e ".[cpu,dev,test]"
+pip install -e ".[cpu,dev,docs]"
 ```
 
 ### Mac Setup (M1/M2/M3)
@@ -50,12 +67,13 @@ pip install -e ".[cpu,dev,test]"
 Development works great on Apple Silicon Macs:
 
 ```bash
-# Option 1: Using uv (recommended)
+# Recommended: Using uv
+make install-uv           # Install uv if needed
 uv venv --python 3.11
 source .venv/bin/activate
 make install
 
-# Option 2: Using conda
+# Alternative: Using conda
 conda create --name torchax python=3.11
 conda activate torchax
 pip install -e ".[cpu,dev,docs]"
