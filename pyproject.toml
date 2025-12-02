@@ -72,9 +72,11 @@ dev = [
 
 # Test dependencies (PINNED versions for reproducible CI)
 test = [
-    # Pinned PyTorch - platform specific
-    "torch==2.8.0 ; sys_platform == 'darwin'",      # macOS from PyPI
-    "torch==2.8.0+cpu ; sys_platform != 'darwin'",  # Linux from PyTorch index
+    # Pinned PyTorch - platform specific (installed together for compatibility)
+    "torch==2.8.0 ; sys_platform == 'darwin'",           # macOS from PyPI
+    "torchvision==0.19.0 ; sys_platform == 'darwin'",    # macOS from PyPI
+    "torch==2.8.0+cpu ; sys_platform != 'darwin'",       # Linux from PyTorch index
+    "torchvision==0.19.0+cpu ; sys_platform != 'darwin'", # Linux from PyTorch index
     # Other pinned versions
     "jax[cpu]==0.7.2",
     "flax==0.10.6",
