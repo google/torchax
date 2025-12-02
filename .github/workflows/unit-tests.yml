@@ -67,6 +67,6 @@ jobs:
           for FILE in $(find docs/docs/tutorials -name '*.py' 2>/dev/null || true); do
             if [ -f "$FILE" ]; then
               echo "Testing $FILE"
-              python "$FILE"
+              .venv/bin/python "$FILE"
             fi
           done
