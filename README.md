@@ -1,5 +1,11 @@
 # torchax: Running PyTorch on TPU via JAX
 
+Docs page: https://google.github.io/torchax/
+Discord Discussion Channel: https://discord.gg/JqeJqGPyzC
+
+
+![](docs/docs/assets/logo.jpeg)
+
 **torchax** is a backend for PyTorch that allows users to run
 PyTorch programs on Google Cloud TPUs. It also provides graph-level
 interoperability between PyTorch and JAX.

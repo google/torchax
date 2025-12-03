@@ -1,3 +1,4 @@
+![](../assets/logo.jpeg)
 ## What is torchax
 
 **torchax** is a PyTorch frontend for JAX. It gives JAX the ability
@@ -14,6 +15,8 @@ With **torchax**, you can:
   * Use a PyTorch model as a feature extractor with a JAX model.
   * Run PyTorch code on hardwares where JAX is supported, such as Google TPUs,
     with minimal code changes.
+
+Feel free to join our [discord channel](https://discord.gg/JqeJqGPyzC) for discussions / questions!
 
 
 ## Installation

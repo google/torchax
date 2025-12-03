@@ -19,7 +19,7 @@
 # <!--* freshness: { reviewed: '2024-04-16' } *-->
 
 # %% [markdown] id="pFtQjv4SzHRj"
-# This tutorial is based on the JAX tutorial on distributed arrays: https://docs.jax.dev/en/latest/the-training-cookbook.html
+# This tutorial is based on the JAX tutorial on distributed arrays: https://docs.jax.dev/en/latest/notebooks/Distributed_arrays_and_automatic_parallelization.html
 #
 # Most Cell is one to one mapping to the JAX tutorial.
 
@@ -453,7 +453,7 @@ inputs = torch.randn((batch_size, layer_sizes[0]), device='jax')
 model(inputs)
 
 # %%
-params = model.state_dict() 
+params = model.state_dict()
 
 # make a function that takes weight as input
 def pure_model_fun(weights, inputs):
@@ -556,19 +556,19 @@ params.keys()
 # params = (W1, b1), (W2, b2), (W3, b3), (W4, b4)
 
 name_to_sharding = {
-    'layers.0.weight': replicated_sharding, 
-    'layers.0.bias': replicated_sharding, 
-    'layers.1.weight': NamedSharding(mesh, P('model')), # column parallel 
-    'layers.1.bias': NamedSharding(mesh, P('model')), 
+    'layers.0.weight': replicated_sharding,
+    'layers.0.bias': replicated_sharding,
+    'layers.1.weight': NamedSharding(mesh, P('model')), # column parallel
+    'layers.1.bias': NamedSharding(mesh, P('model')),
     'layers.2.weight': NamedSharding(mesh, P(None, 'model')),
-    'layers.2.bias': replicated_sharding, 
-    'layers.3.weight': replicated_sharding, 
+    'layers.2.bias': replicated_sharding,
+    'layers.3.weight': replicated_sharding,
     'layers.3.bias': replicated_sharding
 }
 
 for name, tensor in params.items():
     tensor.apply_jax_(jax.device_put, name_to_sharding[name])
-    
+
 
 # %% colab={"base_uri": "https://localhost:8080/", "height": 199} id="_lSJ63sh3vGW" outputId="bcd3e33e-36b5-4787-9cd2-60623fd6e5fa"
 visualize_array_sharding(params['layers.1.weight'])
