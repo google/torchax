@@ -16,6 +16,8 @@ With **torchax**, you can:
   * Run PyTorch code on hardwares where JAX is supported, such as Google TPUs,
     with minimal code changes.
 
+Feel free to join our [discord channel](https://discord.gg/JqeJqGPyzC) for discussions / questions!
+
 
 ## Installation
 
