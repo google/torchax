@@ -5695,6 +5695,53 @@ def _aten__assert_tensor_metadata(*args, **kwargs):
   pass
 
 
+@op(torch.ops.aten.unfold)
+def _aten_unfold(x, dimension, size, step):
+  ndim = x.ndim if x.ndim > 0 else 1
+  shape = x.shape if len(x.shape) > 0 else (1,)
+  if dimension < -ndim or dimension >= ndim:
+    raise IndexError(
+      f"Dimension out of range (expected to be in range of [{-ndim}, {ndim}], but got {dimension})"
+    )
+  if size < 0:
+    raise RuntimeError(f"size is {size} but must be >= 0")
+
+  if dimension < 0:
+    dimension += ndim
+
+  if shape[dimension] < size:
+    raise RuntimeError(
+      f"RuntimeError: maximum size for tensor at dimension {dimension} is {shape[dimension]} but size is {size}"
+    )
+
+  if x.ndim == 0:
+    return _aten_slice(_aten_unsqueeze(x, 0), end=size)
+
+  num_windows = (shape[dimension] - size) // step + 1
+
+  # Start indices for each window in the specified dimension
+  start_indices = jnp.arange(num_windows) * step
+
+  # Function to extract a single slice
+  def slice_fn(start_index):
+    return jax.lax.dynamic_slice_in_dim(x, start_index, size, axis=dimension)
+
+  # Vectorize the slice_fn over all start_indices
+  unfolded_slices = jax.vmap(slice_fn)(start_indices)
+  # The shape of unfolded_slices is (num_windows, d0, ..., size, ..., dN-1)
+  # where 'size' is at the 'dimension'-th position of the original shape part.
+
+  # We need to move the axes to match torch.unfold's output shape:
+  # (d0, ..., d(dim-1), num_windows, d(dim+1), ..., dN-1, size)
+
+  # Move the num_windows axis (axis 0) to the 'dimension' position
+  temp = jnp.moveaxis(unfolded_slices, 0, dimension)
+  # The shape is now (d0, ..., num_windows, size, ..., dN-1)
+
+  # Move the 'size' axis (now at dimension + 1) to the very end
+  return jnp.moveaxis(temp, dimension + 1, -1)
+
+
 mutation_ops_to_functional = {
   torch.ops.aten.add_: op_base.InplaceOp(torch.ops.aten.add),
   torch.ops.aten.sub_: op_base.InplaceOp(torch.ops.aten.sub),
@@ -5733,6 +5780,7 @@ mutation_ops_to_functional = {
   torch.ops.aten.floor_divide_: op_base.InplaceOp(torch.ops.aten.floor_divide),
   torch.ops.aten.remainder_: op_base.InplaceOp(torch.ops.aten.remainder),
   torch.ops.aten.index_put_: op_base.InplaceOp(torch.ops.aten.index_put),
+  torch.ops.aten.masked_scatter_: op_base.InplaceOp(torch.ops.aten.masked_scatter),
 }
 
 # Note: tuple comparisons work intuitively, e.g. `_jax_version >= (0, 4, 32)`.

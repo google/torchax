@@ -55,8 +55,6 @@ skiplist = {
   "special.scaled_modified_bessel_k1",
   "special.spherical_bessel_j0",
   "special.zeta",
-  "unfold_copy",
-  "unfold",
 }
 
 not_support_ops_list = {
