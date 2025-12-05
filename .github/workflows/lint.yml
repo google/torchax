@@ -12,6 +12,11 @@ on:
       - "docs/**"
       - "**.md"
 
+# Cancel in-progress runs when a new commit is pushed
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   lint:
     name: Lint with Ruff
@@ -22,22 +27,11 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@v5
         with:
-          version: "0.9.5"
+          enable-cache: true
+          cache-dependency-glob: "pyproject.toml"
 
       - name: Set up Python
-        uses: actions/setup-python@v6
-        with:
-          python-version: "3.11"
+        run: uv python install 3.11
 
-      - name: Install dependencies
-        run: |
-          uv pip install --system ruff
-
-      - name: Run ruff check
-        run: |
-          ruff check torchax test test_dist
-
-      - name: Run ruff format check
-        run: |
-          ruff format --check torchax test test_dist
-
+      - name: Run linter
+        run: make lint-check
