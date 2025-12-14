@@ -12,31 +12,31 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import functools
+import logging
 import os
 import time
-import logging
-from typing import Tuple
 from collections import defaultdict
-import functools
+from typing import Tuple
+
+import helper
+import jax
+import jax.numpy as jnp
+import optax
+import splash_attn
 import torch
 import torch.nn.functional
+from jax.experimental import mesh_utils
+from jax.experimental.pallas.ops.tpu import flash_attention
+from jax.sharding import Mesh, NamedSharding
 from torch.utils import _pytree as pytree
-import splash_attn
-import helper
+from torchtitan.models.llama3 import llama3_args
+from torchtitan.models.llama3.model import model as titan
 
 import torchax as tx
 import torchax.interop
 import torchax.train
-from torchax.interop import jax_view, torch_view, JittableModule
-import jax
-import jax.numpy as jnp
-from jax.experimental import shard_map
-from jax.experimental import mesh_utils
-from jax.sharding import Mesh, NamedSharding
-import optax
-
-from torchtitan.models.llama3 import llama3_args
-from torchtitan.models.llama3.model import model as titan
+from torchax.interop import JittableModule, jax_view, torch_view
 
 P = jax.sharding.PartitionSpec
 
@@ -183,8 +183,6 @@ class Trainer:
   def fit(self, model, loss_fn, data_loader, train_steps=25):
     xla_env = torchax.default_env()
     jax.config.update("jax_enable_x64", False)
-    xla_env._mesh = self.mesh
-    xla_env.use_flash_attention = True
 
     jittable_mod = JittableModule(model)
 
@@ -295,32 +293,33 @@ def _process_sharding_name(name):
       tokens[i] = "*"
   return ".".join(tokens)
 
+
 def _make_weight_shard(weight_meta, slice_index):
-    # 1. Determine the specific shape for this shard
-    shard_meta = weight_meta[slice_index]
-    # print(f".... working on shard at index={slice_index} with shape={shard_meta.shape}")
+  # 1. Determine the specific shape for this shard
+  shard_meta = weight_meta[slice_index]
+  # print(f".... working on shard at index={slice_index} with shape={shard_meta.shape}")
 
-    # 2. Deterministic Seeding:
-    # Generate a unique random key based on the slice_index.
-    # This ensures every device initializes with different noise (or same if desired).
-    # Note: Converting slice_index to a stable hash integer for seeding.
-    seed = hash(tuple((s.start, s.stop, s.step) for s in slice_index)) % (2**31 - 1)
-    key = jax.random.PRNGKey(seed)
+  # 2. Deterministic Seeding:
+  # Generate a unique random key based on the slice_index.
+  # This ensures every device initializes with different noise (or same if desired).
+  # Note: Converting slice_index to a stable hash integer for seeding.
+  seed = hash(tuple((s.start, s.stop, s.step) for s in slice_index)) % (2**31 - 1)
+  key = jax.random.PRNGKey(seed)
 
-    # 3. Handle Dtype Mapping (Torch -> JAX)
-    # Ensure we allocate directly in bfloat16 if the model is bfloat16
-    dtype_map = {
-      torch.bfloat16: jnp.bfloat16,
-        torch.float16: jnp.float16,
-        torch.float32: jnp.float32,
-        torch.complex64: jnp.complex64, 
-        torch.complex128: jnp.complex128,
-    }
-    jax_dtype = dtype_map.get(shard_meta.dtype, jnp.bfloat16)
+  # 3. Handle Dtype Mapping (Torch -> JAX)
+  # Ensure we allocate directly in bfloat16 if the model is bfloat16
+  dtype_map = {
+    torch.bfloat16: jnp.bfloat16,
+    torch.float16: jnp.float16,
+    torch.float32: jnp.float32,
+    torch.complex64: jnp.complex64,
+    torch.complex128: jnp.complex128,
+  }
+  jax_dtype = dtype_map.get(shard_meta.dtype, jnp.bfloat16)
 
-    # 4. Generate directly on the device using JAX
-    # This allocates ONLY the memory needed for the shard, directly on XLA/TPU
-    return jax.random.normal(key, shard_meta.shape, dtype=jax_dtype)
+  # 4. Generate directly on the device using JAX
+  # This allocates ONLY the memory needed for the shard, directly on XLA/TPU
+  return jax.random.normal(key, shard_meta.shape, dtype=jax_dtype)
 
 
 def create_sharded_weights(model, mesh, sharding_map):
@@ -332,14 +331,16 @@ def create_sharded_weights(model, mesh, sharding_map):
       print("Skipping weight:", name)
       continue
     sharding = NamedSharding(mesh, P(*sharding_spec))
-    print(f"Initializing weight {name} w shape={weight_meta.shape} dtype={weight_meta.dtype} sharding={sharding}....")
+    print(
+      f"Initializing weight {name} w shape={weight_meta.shape} dtype={weight_meta.dtype} sharding={sharding}...."
+    )
     res[name] = env.j2t_iso(
-            jax.make_array_from_callback(
-                weight_meta.shape,
-                sharding,
-                functools.partial(_make_weight_shard, weight_meta),
-            )
-        )
+      jax.make_array_from_callback(
+        weight_meta.shape,
+        sharding,
+        functools.partial(_make_weight_shard, weight_meta),
+      )
+    )
   return res
 
 
@@ -359,7 +360,6 @@ def main(
   train_steps=25,
   tpu_num_slices=1,
 ):
-
   torchax.enable_globally()
   torchax.enable_performance_mode()
   # logging.getLogger("jax").setLevel(logging.DEBUG)
@@ -368,7 +368,10 @@ def main(
 
   num_hosts = jax.process_count()
 
-  print(f"Global Devices: {num_global_devices}, Local Devices: {num_local_devices}, Hosts: {num_hosts}, Slices: {tpu_num_slices}", flush=True)
+  print(
+    f"Global Devices: {num_global_devices}, Local Devices: {num_local_devices}, Hosts: {num_hosts}, Slices: {tpu_num_slices}",
+    flush=True,
+  )
 
   fsdp = num_global_devices // tp_parallelism
 
@@ -378,7 +381,11 @@ def main(
     mesh = jax.make_mesh((fsdp, tp_parallelism), ("fsdp", "tp"))
   else:
     dev_array = jax.experimental.mesh_utils.create_hybrid_device_mesh(
-      (fsdp // tpu_num_slices, tp_parallelism), (tpu_num_slices, 1), jax.devices(), process_is_granule=False, allow_split_physical_axes=True
+      (fsdp // tpu_num_slices, tp_parallelism),
+      (tpu_num_slices, 1),
+      jax.devices(),
+      process_is_granule=False,
+      allow_split_physical_axes=True,
     )
     mesh = Mesh(dev_array, ("fsdp", "tp"))
 
@@ -391,9 +398,6 @@ def main(
     sharding_map = sharding_map_original
 
   env = torchax.default_env()
-  env.config.use_tpu_flash_attention = True
-  env.config.shmap_flash_attention = True
-  env._mesh = mesh  # this is the mesh used by flash attention pallas kernel
 
   args = llama3_args[model_type]
   # Note: torchtitan's upstream config did not specify this value
@@ -408,7 +412,9 @@ def main(
   torch.set_default_dtype(torch.bfloat16)
   with torch.device("meta"):
     gpt = titan.Transformer(args)
-  print(f'Model initialized with {sum(p.numel() for p in gpt.parameters())/1e9:.2f} B parameters.')
+  print(
+    f"Model initialized with {sum(p.numel() for p in gpt.parameters()) / 1e9:.2f} B parameters."
+  )
 
   with torch.device("cpu"):
     # need actual value for freqs_cis

@@ -454,13 +454,34 @@ split into fsdp x tp 2D array. Tensors will be sharded on those 2 axis
 Scan is implemented as the `TransformerWithScan` below.
 
 ```python
-    env = torchax.default_env()
-    env.config.use_tpu_flash_attention = True
-    env.config.shmap_flash_attention = True
-    env._mesh = mesh  # this is the mesh used by flash attention pallas kernel
+    # NOTE: overriding attention to capture mesh and sharding info
+    partition = P("fsdp", "tp", None, None)
+    attention = functools.partial(splash_attn.tpu_splash_attention, mesh, partition, True)
+    attention = jax.jit(attention)
+    
+    def custom_attention(
+      query,
+      key,
+      value,
+      attn_mask=None,
+      dropout_p=0.0,
+      is_causal=False,
+      scale=None,
+      enable_gqa=False,
+    ):
+      #  batch, num of head, seq, dim
+      jk, jq, jv = jax_view((query, key, value))
+      res = attention(jk, jq, jv, None)
+      return torch_view(res)
+  
+    env.override_op_definition(
+      torch.nn.functional.scaled_dot_product_attention, custom_attention
+    )
 ```
-this bit tells TX to use flash_attention implemented in pallas. Because pallas is
-single device by default, we apply `jax.shard_map` with a mesh.
+this bit tells TX to intercept the call to `F.scaled_dot_product_attention`
+and swap out with flash_attention implemented in pallas. Because pallas is
+single device by default, we apply `jax.shard_map` with a mesh and sharding
+information.
 
 ```python
     args = llama3_configs[model_type]
