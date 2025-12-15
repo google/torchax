@@ -22,13 +22,17 @@ import jax
 import jax.numpy as jnp
 import torch
 from jax import tree_util as pytree
-from jax.experimental.shard_map import shard_map
 from torch.nn.utils import stateless as torch_stateless
 
 import torchax
 from torchax import tensor, util
 from torchax.ops import mappings
 from torchax.types import JaxCallable, JaxValue, TorchCallable, TorchValue
+
+try:
+  from jax import shard_map as shard_map  # for jax since v0.8.0
+except ImportError:
+  from jax.experimental.shard_map import shard_map
 
 
 def extract_all_buffers(m: torch.nn.Module):
