@@ -24,22 +24,11 @@ import jax.numpy as jnp
 import numpy as np
 import torch
 import torch.utils._pytree as pytree
-<<<<<<< HEAD
-from jax.experimental.pallas.ops.tpu import flash_attention
-=======
-from jax.experimental.shard_map import shard_map
->>>>>>> b87184e (Remove option for using flash attention)
-from jax.sharding import PartitionSpec
 
 import torchax.tensor
 from torchax.ops import jaten, jimage, mappings, op_base
 from torchax.ops.ops_registry import register_torch_function_op
 from torchax.view import NarrowInfo, View
-
-try:
-  from jax import shard_map as shard_map  # for jax since v0.8.0
-except ImportError:
-  from jax.experimental.shard_map import shard_map
 
 
 def register_function(torch_func, **kwargs):
