@@ -35,10 +35,6 @@ class Configuration:
   # Use DLPack for converting jax.Arrays <-> and torch.Tensor
   use_dlpack_for_data_conversion: bool = False
 
-  # Flash attention
-  use_tpu_flash_attention: bool = False
-  shmap_flash_attention: bool = False
-
   # device
   treat_cuda_as_jax_device: bool = True
   internal_respect_torch_return_dtypes: bool = False

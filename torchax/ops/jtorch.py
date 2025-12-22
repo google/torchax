@@ -24,18 +24,11 @@ import jax.numpy as jnp
 import numpy as np
 import torch
 import torch.utils._pytree as pytree
-from jax.experimental.pallas.ops.tpu import flash_attention
-from jax.sharding import PartitionSpec
 
 import torchax.tensor
 from torchax.ops import jaten, jimage, mappings, op_base
 from torchax.ops.ops_registry import register_torch_function_op
 from torchax.view import NarrowInfo, View
-
-try:
-  from jax import shard_map as shard_map  # for jax since v0.8.0
-except ImportError:
-  from jax.experimental.shard_map import shard_map
 
 
 def register_function(torch_func, **kwargs):
@@ -158,39 +151,6 @@ def _sdpa_reference(
   return attn_weight @ value
 
 
-def _tpu_flash_attention(query, key, value, env):
-  fsdp_partition = PartitionSpec("fsdp")
-
-  def wrap_flash_attention(query, key, value):
-    block_sizes = flash_attention.BlockSizes(
-      block_b=min(2, query.shape[0]),
-      block_q=min(512, query.shape[2]),
-      block_k_major=min(512, key.shape[2]),
-      block_k=min(512, key.shape[2]),
-      block_q_major_dkv=min(512, query.shape[2]),
-      block_k_major_dkv=min(512, key.shape[2]),
-      block_k_dkv=min(512, key.shape[2]),
-      block_q_dkv=min(512, query.shape[2]),
-      block_k_major_dq=min(512, key.shape[2]),
-      block_k_dq=min(256, key.shape[2]),
-      block_q_dq=min(1024, query.shape[2]),
-    )
-    return flash_attention.flash_attention(
-      query, key, value, causal=True, block_sizes=block_sizes
-    )
-
-  if env.config.shmap_flash_attention:
-    wrap_flash_attention = shard_map(
-      wrap_flash_attention,
-      mesh=env._mesh,
-      in_specs=(fsdp_partition, fsdp_partition, fsdp_partition),
-      out_specs=fsdp_partition,
-      check_rep=False,
-    )
-  # return flash_attn_mapped(query, key, value)
-  return wrap_flash_attention(query, key, value)
-
-
 @register_function(torch.nn.functional.one_hot)
 def one_hot(tensor, num_classes=-1):
   if num_classes == -1:
@@ -269,11 +229,6 @@ def scaled_dot_product_attention(
   enable_gqa=False,
   env=None,
 ) -> torch.Tensor:
-  if env.config.use_tpu_flash_attention:
-    jquery, jkey, jvalue = env.t2j_iso((query, key, value))
-    res = _tpu_flash_attention(jquery, jkey, jvalue, env)
-    return env.j2t_iso(res)
-
   return _sdpa_reference(
     query, key, value, attn_mask, dropout_p, is_causal, scale, enable_gqa
   )
