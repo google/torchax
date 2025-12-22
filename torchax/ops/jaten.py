@@ -5776,7 +5776,16 @@ mutation_ops_to_functional = {
   torch.ops.aten.scatter_add_: op_base.InplaceOp(torch.ops.aten.scatter_add),
   torch.ops.aten.scatter_reduce_.two: op_base.InplaceOp(torch.ops.aten.scatter_reduce),
   torch.ops.aten.scatter_: op_base.InplaceOp(torch.ops.aten.scatter),
+  torch.ops.aten.bitwise_not_: op_base.InplaceOp(torch.ops.aten.bitwise_not),
+  torch.ops.aten.bitwise_and_: op_base.InplaceOp(torch.ops.aten.bitwise_and),
   torch.ops.aten.bitwise_or_: op_base.InplaceOp(torch.ops.aten.bitwise_or),
+  torch.ops.aten.bitwise_xor_: op_base.InplaceOp(torch.ops.aten.bitwise_xor),
+  torch.ops.aten.bitwise_left_shift_: op_base.InplaceOp(
+    torch.ops.aten.bitwise_left_shift
+  ),
+  torch.ops.aten.bitwise_right_shift_: op_base.InplaceOp(
+    torch.ops.aten.bitwise_right_shift
+  ),
   torch.ops.aten.floor_divide_: op_base.InplaceOp(torch.ops.aten.floor_divide),
   torch.ops.aten.remainder_: op_base.InplaceOp(torch.ops.aten.remainder),
   torch.ops.aten.index_put_: op_base.InplaceOp(torch.ops.aten.index_put),
