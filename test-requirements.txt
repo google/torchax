@@ -1,16 +1,11 @@
--r dev-requirements.txt
-absl-py==2.2.2
-immutabledict==4.2.1
-pytest==8.3.5
-sentencepiece
-expecttest==0.3.0
-optax==0.2.4
-pytest
-pytest-xdist
-termcolor
-jupyter
-nbconvert
-pandas
-matplotlib
-tensorboard
-pytest-reraise
+# Test Requirements (Legacy)
+
+**Note**: This file is kept for backward compatibility.
+New development should use:
+```bash
+make install-test
+# or
+pip install -e ".[test,docs]" --extra-index-url https://download.pytorch.org/whl/cpu
+```
+
+See `pyproject.toml` `[project.optional-dependencies.test]` for the canonical list of test dependencies.

@@ -16,7 +16,7 @@ jobs:
     # in PyPI Settings > Publishing for your release configuration.
     environment:
       name: pypi
-      url: https://pypi.org/p/torchax # Replace 'torchax' with your package name
+      url: https://pypi.org/p/torchax
 
     permissions:
       # MANDATORY for OIDC Trusted Publishing
@@ -30,18 +30,22 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
         with:
-          python-version: '3.11'
+          enable-cache: true
 
-      - name: Install build dependencies
-        run: pip install build
+      - name: Set up Python
+        run: uv python install 3.11
 
-      - name: Build Wheel
-        # We build both here, as stable releases usually offer both formats.
-        run: python -m build --wheel
+      - name: Create virtual environment
+        run: uv venv
+
+      - name: Build package
+        run: |
+          source .venv/bin/activate
+          make build
 
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
-        # Trusted Publishing handles authentication automatically.
+        # Trusted Publishing handles authentication automatically
