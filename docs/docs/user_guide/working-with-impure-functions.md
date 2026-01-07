@@ -220,6 +220,17 @@ writes to global, it is a pure function:
 
 Now the above is a pure function.
 
+
+### Caveat: thread safety
+
+Because the above function modifies global state, it is NOT thread safe.
+In particular, you might get [UnexpectedTracerError](https://docs.jax.dev/en/latest/errors.html#jax.errors.UnexpectedTracerError). If 2 threads calls `pure_f` for the first 
+time the same time, both threads will start jitting. They will use different `Tracer` object,
+that tracer object will get set into a global and another thread might use it to do math
+with different Tracer, then Jax will get confused.
+
+The solution is simple: add a lock whenever you call `pure_f`.
+
 ## Implication to random number seed, and class states
 
 The above is the same trick detailed in this issue: https://github.com/google/torchax/issues/17#issuecomment-3445098772
