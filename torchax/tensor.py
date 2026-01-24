@@ -422,10 +422,7 @@ class Environment(contextlib.ContextDecorator):
     for k, v in itertools.chain(
       ops_registry.all_aten_ops.items(), ops_registry.all_torch_functions.items()
     ):
-      if v.is_jax_function:
         self._ops[k] = v
-      else:
-        self._decomps[k] = v
 
     from torchax.decompositions import DECOMPOSITIONS, MUTABLE_DECOMPOSITION
 
