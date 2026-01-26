@@ -2402,7 +2402,6 @@ def _aten_atan2(input, other):
 
 # aten.bitwise_and
 @op(torch.ops.aten.bitwise_and)
-@op(torch.ops.aten.__and__)
 def _aten_bitwise_and(self, other):
   return self & other
 
