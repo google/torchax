@@ -8,7 +8,7 @@ TARGET_FILE = Path("torchax/__init__.py")
 
 def update_version():
     nightly_date = datetime.date.today()
-    date_str = '{}{}{}'.format(nightly_date.year, nightly_date.month, nightly_date.day)
+    date_str = f'{nightly_date.year:04d}{nightly_date.month:02d}{nightly_date.day:02d}'
 
     # 2. Check if the target file exists
     if not TARGET_FILE.exists():
