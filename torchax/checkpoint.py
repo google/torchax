@@ -19,7 +19,6 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 import torch
-from flax.training import checkpoints
 
 from . import tensor
 
@@ -53,6 +52,9 @@ def save_checkpoint(state: dict[str, Any], path: str, step: int):
     path: The path to save the checkpoint to. This is a directory.
     step: The training step.
   """
+  # Defer import to reduce direct package dependency and warning messages.
+  from flax.training import checkpoints
+
   state = _to_jax(state)
   checkpoints.save_checkpoint(path, state, step=step, overwrite=True)
 
@@ -71,6 +73,9 @@ def load_checkpoint(path: str) -> dict[str, Any]:
   Returns:
     The loaded state in JAX format (pytree with jax.Array leaves).
   """
+  # Defer import to reduce direct package dependency and warning messages.
+  from flax.training import checkpoints
+
   if os.path.isdir(path):
     # JAX-style checkpoint
     state = checkpoints.restore_checkpoint(path, target=None)
