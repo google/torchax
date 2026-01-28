@@ -65,7 +65,7 @@ def default_env():
   return env
 
 
-def extract_jax(mod: torch.nn.Module, env=None):
+def extract_jax(mod: torch.nn.Module, env=None, tie_weights=False):
   """Returns a pytree of jax.ndarray and a jax callable."""
   if env is None:
     env = default_env()
@@ -78,7 +78,7 @@ def extract_jax(mod: torch.nn.Module, env=None):
   def jax_func(states, args, kwargs=None):
     (states, args, kwargs) = env.j2t_iso((states, args, kwargs))
     with env:
-      res = torch.func.functional_call(mod, states, args, kwargs, tie_weights=False)
+      res = torch.func.functional_call(mod, states, args, kwargs, tie_weights=tie_weights)
     return env.t2j_iso(res)
 
   return states, jax_func
