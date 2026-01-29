@@ -5792,7 +5792,7 @@ mutation_ops_to_functional = {
   torch.ops.aten.masked_scatter_: op_base.InplaceOp(torch.ops.aten.masked_scatter),
 }
 
-out_variant_to_functional = {
+_out_variant_to_functional = {
   torch.ops.aten.add.out: op_base.OutVariant(torch.ops.aten.add),
   torch.ops.aten.sub.out: op_base.OutVariant(torch.ops.aten.sub),
   torch.ops.aten.mul.out: op_base.OutVariant(torch.ops.aten.mul),
@@ -5812,7 +5812,7 @@ out_variant_to_functional = {
   torch.ops.aten.logical_not.out: op_base.OutVariant(torch.ops.aten.logical_not),
   torch.ops.aten.log_normal.out: op_base.OutVariant(torch.ops.aten.log_normal),
   torch.ops.aten.scatter_add.out: op_base.OutVariant(torch.ops.aten.scatter_add),
-  torch.ops.aten.scatter_reduce_.two: op_base.OutVariant(torch.ops.aten.scatter_reduce),
+  torch.ops.aten.scatter_reduce.two_out: op_base.OutVariant(torch.ops.aten.scatter_reduce.two),
   torch.ops.aten.bitwise_not.out: op_base.OutVariant(torch.ops.aten.bitwise_not),
   torch.ops.aten.floor_divide.out: op_base.OutVariant(torch.ops.aten.floor_divide),
   torch.ops.aten.index_put.out: op_base.OutVariant(torch.ops.aten.index_put),
@@ -5836,7 +5836,7 @@ for operator, mutation in mutation_ops_to_functional.items():
     needs_env=(operator in mutation_needs_env),
   )
 
-for operator, definition in out_variant_to_functional.items():
+for operator, definition in _out_variant_to_functional.items():
     ops_registry.register_torch_dispatch_op(
       operator,
       definition,

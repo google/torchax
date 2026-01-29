@@ -23,6 +23,7 @@ import torch
 
 from torchax import types
 from torchax.ops import mappings
+from torchax.tensor import Tensor
 from torchax.view import View
 
 
@@ -68,9 +69,8 @@ class OutVariant:
         self.functional = functional_op
 
     def __call__(self, *args, **kwargs):
-        to_mutate = kwargs["out"]
+        to_mutate: Tensor|View = kwargs["out"]
         del kwargs["out"]
-        view_value = to_mutate
         new_value= self.functional(*args, **kwargs)
         if isinstance(to_mutate, View):
             to_mutate.update(new_value)
