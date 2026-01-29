@@ -27,7 +27,7 @@ from torchax import tensor
 
 from .checkpoint import load_checkpoint, save_checkpoint
 
-__version__ = "0.0.11"
+__version__ = "0.0.12"
 VERSION = __version__
 
 # the "fast path" uses some sparse tensor thingies that currently we
