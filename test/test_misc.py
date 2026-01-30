@@ -90,9 +90,9 @@ class MiscTest(unittest.TestCase):
         self.assertTrue(torch.allclose(x, y))
 
     def test_zeros_with_explicit_size(self):
-        with torchax.default_env():
-            a = torch.zeros(size = (4,), device='jax')
-            self.assertEqual(a.shape[0], 4)
+      with torchax.default_env():
+        a = torch.zeros(size=(4,), device="jax")
+        self.assertEqual(a.shape[0], 4)
 
 
 if __name__ == "__main__":

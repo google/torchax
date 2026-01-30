@@ -64,19 +64,18 @@ class InplaceOp:
 
 
 class OutVariant:
+  def __init__(self, functional_op):
+    self.functional = functional_op
 
-    def __init__(self, functional_op):
-        self.functional = functional_op
-
-    def __call__(self, *args, **kwargs):
-        to_mutate: Tensor|View = kwargs["out"]
-        del kwargs["out"]
-        new_value= self.functional(*args, **kwargs)
-        if isinstance(to_mutate, View):
-            to_mutate.update(new_value)
-        else:
-            to_mutate._elem = new_value._elem
-        return to_mutate
+  def __call__(self, *args, **kwargs):
+    to_mutate: Tensor | View = kwargs["out"]
+    del kwargs["out"]
+    new_value = self.functional(*args, **kwargs)
+    if isinstance(to_mutate, View):
+      to_mutate.update(new_value)
+    else:
+      to_mutate._elem = new_value._elem
+    return to_mutate
 
 
 P = ParamSpec("P")

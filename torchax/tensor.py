@@ -422,7 +422,7 @@ class Environment(contextlib.ContextDecorator):
     for k, v in itertools.chain(
       ops_registry.all_aten_ops.items(), ops_registry.all_torch_functions.items()
     ):
-        self._ops[k] = v
+      self._ops[k] = v
 
     from torchax.decompositions import DECOMPOSITIONS, MUTABLE_DECOMPOSITION
 
