@@ -24,6 +24,7 @@ from torch.utils import _pytree as pytree
 
 import torchax.device_module
 from torchax import tensor
+from torchax.interop import JittableModule
 
 from .checkpoint import load_checkpoint, save_checkpoint
 
@@ -65,20 +66,29 @@ def default_env():
   return env
 
 
-def extract_jax(mod: torch.nn.Module, env=None):
+def extract_jax(mod: torch.nn.Module, env=None, *, dedup_parameters=True):
   """Returns a pytree of jax.ndarray and a jax callable."""
   if env is None:
     env = default_env()
-  states = dict(mod.named_buffers())
-  states.update(mod.named_parameters())
 
+  jit_module = JittableModule(mod, dedup_parameters=dedup_parameters)
+
+  states = dict(jit_module.buffers)
+  states.update(jit_module.params)
   states = env.t2j_copy(states)
 
-  # @jax.jit
   def jax_func(states, args, kwargs=None):
-    (states, args, kwargs) = env.j2t_iso((states, args, kwargs))
+    if kwargs is None:
+      kwargs = {}
+
+    # Pick the params and buffers supplied to jax_func
+    params = {k: states[k] for k in jit_module.params.keys()}
+    buffers = {k: states[k] for k in jit_module.buffers.keys()}
+    (params, buffers, args, kwargs) = env.j2t_iso((params, buffers, args, kwargs))
+
     with env:
-      res = torch.func.functional_call(mod, states, args, kwargs, tie_weights=False)
+      res = jit_module.functional_call("forward", params, buffers, *args, **kwargs)
+
     return env.t2j_iso(res)
 
   return states, jax_func
