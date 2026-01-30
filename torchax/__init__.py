@@ -66,7 +66,7 @@ def default_env():
   return env
 
 
-def extract_jax(mod: torch.nn.Module, env=None, dedup_parameters=True):
+def extract_jax(mod: torch.nn.Module, env=None, *, dedup_parameters=True):
   """Returns a pytree of jax.ndarray and a jax callable."""
   if env is None:
     env = default_env()
