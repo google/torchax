@@ -285,6 +285,8 @@ def linalg_det(input):
 def _ones(*size: int, dtype=None, **kwargs):
   if len(size) == 1 and isinstance(size[0], collections.abc.Iterable):
     size = size[0]
+  if "size" in kwargs:
+    size = kwargs["size"]
   return jaten._ones(size, dtype=dtype)
 
 
@@ -292,6 +294,8 @@ def _ones(*size: int, dtype=None, **kwargs):
 def _zeros(*size: int, dtype=None, **kwargs):
   if len(size) == 1 and isinstance(size[0], collections.abc.Iterable):
     size = size[0]
+  if "size" in kwargs:
+    size = kwargs["size"]
   return jaten._zeros(size, dtype=dtype)
 
 
@@ -313,6 +317,8 @@ def _full(size: Sequence[int], fill_value, *, dtype=None, **kwargs):
 def empty(*size: Sequence[int], dtype=None, **kwargs):
   if len(size) == 1 and isinstance(size[0], collections.abc.Iterable):
     size = size[0]
+  if "size" in kwargs:
+    size = kwargs["size"]
   return jnp.empty(size, dtype=dtype)
 
 
@@ -359,6 +365,8 @@ def unravel_index(indices, shape):
 def rand(*size, **kwargs):
   if len(size) == 1 and isinstance(size[0], collections.abc.Iterable):
     size = size[0]
+  if "size" in kwargs:
+    size = kwargs["size"]
   return jaten._rand(size, **kwargs)
 
 

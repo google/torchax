@@ -5791,6 +5791,35 @@ mutation_ops_to_functional = {
   torch.ops.aten.masked_scatter_: op_base.InplaceOp(torch.ops.aten.masked_scatter),
 }
 
+_out_variant_to_functional = {
+  torch.ops.aten.add.out: op_base.OutVariant(torch.ops.aten.add),
+  torch.ops.aten.sub.out: op_base.OutVariant(torch.ops.aten.sub),
+  torch.ops.aten.mul.out: op_base.OutVariant(torch.ops.aten.mul),
+  torch.ops.aten.div.out: op_base.OutVariant(torch.ops.aten.div),
+  torch.ops.aten.bernoulli.out: op_base.OutVariant(torch.ops.aten.bernoulli.p),
+  torch.ops.aten.geometric.out: op_base.OutVariant(torch.ops.aten.geometric),
+  torch.ops.aten.normal.out: op_base.OutVariant(torch.ops.aten.normal),
+  torch.ops.aten.random.out: op_base.OutVariant(torch.ops.aten.uniform),
+  torch.ops.aten.uniform.out: op_base.OutVariant(torch.ops.aten.uniform),
+  torch.ops.aten.relu.out: op_base.OutVariant(torch.ops.aten.relu),
+  torch.ops.aten.sqrt.out: op_base.OutVariant(torch.ops.aten.sqrt),
+  torch.ops.aten.clamp.out: op_base.OutVariant(torch.ops.aten.clamp),
+  torch.ops.aten.clamp_min.out: op_base.OutVariant(torch.ops.aten.clamp_min),
+  torch.ops.aten.sigmoid.out: op_base.OutVariant(torch.ops.aten.sigmoid),
+  torch.ops.aten.tanh.out: op_base.OutVariant(torch.ops.aten.tanh),
+  torch.ops.aten.ceil.out: op_base.OutVariant(torch.ops.aten.ceil),
+  torch.ops.aten.logical_not.out: op_base.OutVariant(torch.ops.aten.logical_not),
+  torch.ops.aten.log_normal.out: op_base.OutVariant(torch.ops.aten.log_normal),
+  torch.ops.aten.scatter_add.out: op_base.OutVariant(torch.ops.aten.scatter_add),
+  torch.ops.aten.scatter_reduce.two_out: op_base.OutVariant(
+    torch.ops.aten.scatter_reduce.two
+  ),
+  torch.ops.aten.bitwise_not.out: op_base.OutVariant(torch.ops.aten.bitwise_not),
+  torch.ops.aten.floor_divide.out: op_base.OutVariant(torch.ops.aten.floor_divide),
+  torch.ops.aten.index_put.out: op_base.OutVariant(torch.ops.aten.index_put),
+  torch.ops.aten.masked_scatter.out: op_base.OutVariant(torch.ops.aten.masked_scatter),
+}
+
 # Note: tuple comparisons work intuitively, e.g. `_jax_version >= (0, 4, 32)`.
 _jax_version = tuple(int(v) for v in jax.version._version.split("."))
 
@@ -5806,4 +5835,13 @@ for operator, mutation in mutation_ops_to_functional.items():
     is_jax_function=False,
     is_view_op=True,
     needs_env=(operator in mutation_needs_env),
+  )
+
+for operator, definition in _out_variant_to_functional.items():
+  ops_registry.register_torch_dispatch_op(
+    operator,
+    definition,
+    is_jax_function=False,
+    is_view_op=True,
+    needs_env=False,
   )
