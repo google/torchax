@@ -163,35 +163,6 @@ class JittableModule(torch.nn.Module):
     self._jitted[key] = call
 
 
-class CompileMixin:
-  def functional_call(self, method, params, buffers, *args, **kwargs):
-    kwargs = kwargs or {}
-    params_copy = copy.copy(params)
-    params_copy.update(buffers)
-    with torch_stateless._reparametrize_module(self, params_copy):
-      res = method(*args, **kwargs)
-    return res
-
-  def jit(self, method):
-    jitted = jax_jit(functools.partial(self.functional_call, method_name))  # noqa: F821
-
-    def call(*args, **kwargs):
-      return jitted(self.named_paramters(), self.named_buffers(), *args, **kwargs)
-
-    return call
-
-
-def compile_nn_module(m: torch.nn.Module, methods=None):
-  if methods is None:
-    methods = ["forward"]
-
-  type(
-    m.__class__.__name__ + "_with_CompileMixin",
-    (CompileMixin, m.__class__),
-  )
-  m.__class__ = NewParent  # noqa: F821
-
-
 def _torch_view(t: JaxValue) -> TorchValue:
   # t is an object from jax land
   # view it as-if it's a torch land object
