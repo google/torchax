@@ -542,7 +542,7 @@ def _aten_dist(input, other, p=2):
 
 
 @op(torch.ops.aten.bmm)
-def _aten_bmm(x, y):
+def _aten_bmm(x, y, out=None):
   res = x @ y
   return res
   # return jnp.einsum('bnm,bmk->bnk', x, y)
