@@ -576,7 +576,9 @@ def _functional_max_pool2d(
 
 
 @register_function(torch._C._nn.pad_sequence, is_jax_function=True)
-def _pad_sequence(sequences, batch_first=False, padding_value=0.0, padding_side="right"):
+def _pad_sequence(
+  sequences, batch_first=False, padding_value=0.0, padding_side="right"
+):
   max_len = 0
   for s in sequences:
     if s.shape[0] > max_len:
