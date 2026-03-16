@@ -127,7 +127,7 @@ class InteropTest(unittest.TestCase):
     actual = m_jitted(x)
 
     # assert
-    torch.testing.assert_allclose(actual, expected)
+    torch.testing.assert_close(actual, expected)
 
     # arrange
     # make sure buffer donation works
@@ -139,7 +139,7 @@ class InteropTest(unittest.TestCase):
     # act
     actual = functional_forward(m_jitted.params, m_jitted.buffers, x)
     # assert
-    torch.testing.assert_allclose(actual, expected)
+    torch.testing.assert_close(actual, expected)
 
   def test_to_jax_device(self):
     a = torch.ones(3, 3)

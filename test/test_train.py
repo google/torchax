@@ -46,7 +46,9 @@ class TrainTest(unittest.TestCase):
       x = x.to("jax")
       model.to("jax")
       result2 = model(x)
-      torch.testing.assert_allclose(result, result2.to("cpu"))
+      # Explicit rtol/atol match previous assert_allclose's defaults for float32 (1e-4 / 1e-5)
+      # to accommodate small numerical drift accumulating from eager loop vs ScannedModule executions.
+      torch.testing.assert_close(result, result2.to("cpu"), rtol=1e-4, atol=1e-5)
 
   def test_train_step_can_run(self):
     import optax
