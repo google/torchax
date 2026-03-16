@@ -573,3 +573,29 @@ def _functional_max_pool2d(
     ceil_mode,
     with_index=return_indices,
   )
+
+
+@register_function(torch._C._nn.pad_sequence, is_jax_function=True)
+def _pad_sequence(sequences, batch_first=False, padding_value=0.0, padding_side="right"):
+  max_len = 0
+  for s in sequences:
+    if s.shape[0] > max_len:
+      max_len = s.shape[0]
+
+  padded_seqs = []
+  for s in sequences:
+    pad_len = max_len - s.shape[0]
+    if pad_len > 0:
+      pad_list = [0, 0] * (len(s.shape) - 1)
+      if padding_side == "right":
+        pad_list.extend([0, pad_len])
+      else:
+        pad_list.extend([pad_len, 0])
+      # use internal JAX-based implementation
+      padded = jaten._aten_constant_pad_nd(s, pad_list, padding_value)
+    else:
+      padded = s
+    padded_seqs.append(padded)
+
+  stack_axis = 0 if batch_first else 1
+  return jaten._aten_stack(padded_seqs, stack_axis)
