@@ -25,7 +25,6 @@ import torch
 import torch.distributed._functional_collectives
 from jax import numpy as jnp
 
-from torchax import interop
 from torchax.ops import jax_reimplement, mappings, op_base, ops_registry
 from torchax.view import View
 
@@ -38,22 +37,6 @@ def op(*aten, **kwargs):
   def inner(func):
     for a in aten:
       ops_registry.register_torch_dispatch_op(a, func, **kwargs)
-      continue
-
-      if isinstance(a, torch._ops.OpOverloadPacket):
-        opname = (
-          a.default.name() if "default" in a.overloads() else a._qualified_op_name
-        )
-      elif isinstance(a, torch._ops.OpOverload):
-        opname = a.name()
-      else:
-        raise RuntimeError(f"oops {a}")
-
-      torchfunc = functools.partial(interop.call_jax, func)
-      # HACK: to_copy is where we make the initial conversion from CPU tensor to JAX tensor
-      torch.library.impl(opname, "privateuseone")(
-        torchfunc if a != torch.ops.aten._to_copy else func
-      )
     return func
 
   return inner
