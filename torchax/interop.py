@@ -73,7 +73,13 @@ def set_all_buffers(m, params, buffers):
 
 
 class JittableModule(torch.nn.Module):
-  def __init__(self, m: torch.nn.Module, extra_jit_args=None, dedup_parameters=True):
+  def __init__(
+    self,
+    m: torch.nn.Module,
+    extra_jit_args=None,
+    dedup_parameters=True,
+    take_rng: bool = False,
+  ):
     if extra_jit_args is None:
       extra_jit_args = {}
     super().__init__()
@@ -82,6 +88,7 @@ class JittableModule(torch.nn.Module):
     self._jitted = {}
 
     self._extra_jit_args = extra_jit_args
+    self._take_rng = take_rng
 
     self._extra_dumped_weights = {}
 
@@ -104,10 +111,20 @@ class JittableModule(torch.nn.Module):
     return self._model.__class__
 
   def __call__(self, *args, **kwargs):
+    if self._take_rng and "rng" not in kwargs:
+      raise TypeError("JittableModule(..., take_rng=True) requires a `rng` kwarg.")
     return self.forward(*args, **kwargs)
 
   def functional_call(self, method_or_name, params, buffers, *args, **kwargs):
     kwargs = kwargs or {}
+    rng = None
+    if self._take_rng:
+      if "rng" not in kwargs:
+        raise TypeError(
+          "JittableModule(..., take_rng=True) requires a `rng` kwarg in functional_call."
+        )
+      kwargs = copy.copy(kwargs)
+      rng = _jax_view(kwargs.pop("rng"))
     params_copy = copy.copy(params)
     params_copy.update(buffers)
     # reinflate the state dict so there are not any missing keys
@@ -124,8 +141,16 @@ class JittableModule(torch.nn.Module):
         )
       method = method_or_name
       args = (self._model,) + args
-    with torch_stateless._reparametrize_module(self._model, params_copy):
-      res = method(*args, **kwargs)
+    with torchax.default_env() as env:
+      if rng is None:
+        with torch_stateless._reparametrize_module(self._model, params_copy):
+          res = method(*args, **kwargs)
+      else:
+        with (
+          env.override_property(prng=rng),
+          torch_stateless._reparametrize_module(self._model, params_copy),
+        ):
+          res = method(*args, **kwargs)
     return res
 
   def jittable_call(self, method_name: str, *args, **kwargs):

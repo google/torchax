@@ -13,9 +13,12 @@
 # limitations under the License.
 
 import unittest
+import functools
 
+import jax
 import torch
 
+import torchax
 from torchax import interop
 
 
@@ -63,6 +66,74 @@ class JittableModuleTest(unittest.TestCase):
     )
 
     assert torch.equal(output, expected_output)
+
+  def test_take_rng_requires_rng_kwarg(self):
+    class PlusOne(torch.nn.Module):
+      def forward(self, x):
+        return x + 1
+
+    jittable_module = interop.JittableModule(PlusOne(), take_rng=True)
+    with self.assertRaisesRegex(TypeError, "requires a `rng` kwarg"):
+      jittable_module(torch.ones(2, 2))
+
+  def test_take_rng_removes_rng_before_module_call(self):
+    class PlusOne(torch.nn.Module):
+      def forward(self, x):
+        return x + 1
+
+    jittable_module = interop.JittableModule(PlusOne(), take_rng=True)
+    x = torch.randn(2, 2)
+    expected = x + 1
+    output = jittable_module.functional_call(
+      "forward", jittable_module.params, jittable_module.buffers, x, rng=object()
+    )
+    assert torch.equal(output, expected)
+
+  def test_take_rng_controls_random_ops(self):
+    torchax.enable_globally()
+
+    class RandomOut(torch.nn.Module):
+      def forward(self, x):
+        return torch.randn_like(x)
+
+    model = RandomOut().to("jax")
+    jittable_module = interop.JittableModule(model, take_rng=True)
+    x = torch.ones(16, 16).to("jax")
+
+    same_rng_1 = jittable_module(x, rng=jax.random.PRNGKey(0))
+    same_rng_2 = jittable_module(x, rng=jax.random.PRNGKey(0))
+    different_rng = jittable_module(x, rng=jax.random.PRNGKey(1))
+
+    self.assertTrue(torch.equal(same_rng_1, same_rng_2))
+    self.assertFalse(torch.equal(same_rng_1, different_rng))
+
+  def test_take_rng_controls_random_ops_for_jitted_functional_call(self):
+    torchax.enable_globally()
+
+    class RandomOut(torch.nn.Module):
+      def forward(self, x):
+        return torch.randn_like(x)
+
+    model = RandomOut().to("jax")
+    jittable_module = interop.JittableModule(model, take_rng=True)
+    x = torch.ones(16, 16).to("jax")
+
+    jitted_functional = interop.jax_jit(
+      functools.partial(jittable_module.functional_call, "forward")
+    )
+
+    same_rng_1 = jitted_functional(
+      jittable_module.params, jittable_module.buffers, x, rng=jax.random.PRNGKey(0)
+    )
+    same_rng_2 = jitted_functional(
+      jittable_module.params, jittable_module.buffers, x, rng=jax.random.PRNGKey(0)
+    )
+    different_rng = jitted_functional(
+      jittable_module.params, jittable_module.buffers, x, rng=jax.random.PRNGKey(1)
+    )
+
+    self.assertTrue(torch.equal(same_rng_1, same_rng_2))
+    self.assertFalse(torch.equal(same_rng_1, different_rng))
 
 
 if __name__ == "__main__":
