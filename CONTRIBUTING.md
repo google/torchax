@@ -11,13 +11,21 @@ If you plan to contribute new features, utility functions or extensions to the c
 You can develop directly on a Mac (M1) for most parts. Using the steps in the README works. Here is a condensed version for easy copy & paste:
 
 ```bash
-   conda create --name <your_name> python=3.11
-   conda activate <your_name>
-   pip install --upgrade "jax[cpu]" torch
-   pip install -r test-requirements.txt
-   pip install -e .
-   pytest test
+conda create --name <your_name> python=3.11
+conda activate <your_name>
+pip install --upgrade "jax[cpu]" torch
+pip install -r test-requirements.txt
+pip install -e .
+pytest test
 ```
+
+## Setup on GPU or TPU
+
+Same as Mac setup, except, if you run test using pytest, please also
+add `JAX_PLATFORMS=cpu`. The reason is because pytest usually runs
+test in multiple threads. CPU device can be accessed concurrently where
+TPU devices usually only allow one accesor per process; so it could deadlock.
+
 ### Ruff
 
 ```
@@ -27,7 +35,7 @@ ruff format torchax test test_dist examples
 
 ### VSCode
 
-It is recommended to use VSCode on Mac. You can follow the instructions in the `VSCode Python tutorial <https://code.visualstudio.com/docs/python/python-tutorial>`_ to set up a proper Python environment.
+It is recommended to use VSCode on Mac. You can follow the instructions in the [VSCode Python tutorial](https://code.visualstudio.com/docs/python/python-tutorial) to set up a proper Python environment.
 
 The recommended plugins are:
 
