@@ -17,6 +17,7 @@ import itertools
 import logging
 import sys
 import threading
+from collections.abc import Callable
 from typing import Any
 
 import jax
@@ -303,6 +304,15 @@ TENSOR_CONSTRUCTORS = {
 SUPPORTED_JAX_PLATFROM = ["cpu", "tpu"]
 
 
+class _None:
+  """A sentinal type to allow None as normal value."""
+
+  pass
+
+
+_none = _None()
+
+
 class RuntimeProperty:
   mesh: Any
   prng: Any
@@ -313,8 +323,16 @@ class RuntimeProperty:
     self.prng = prng
     self.autocast_dtype = autocast_dtype
 
-  def override(self, **kwargs):
-    return OverrideProperty(self, kwargs)
+  @classmethod
+  def override(cls, base, *, mesh=_none, prng=_none, autocast_dtype=_none):
+    def with_default(val, default):
+      return default if val is _none else val
+
+    return cls(
+      mesh=with_default(mesh, base.mesh),
+      prng=with_default(prng, base.prng),
+      autocast_dtype=with_default(autocast_dtype, base.autocast_dtype),
+    )
 
   def get_and_rotate_prng_key(self):
     old_key = self.prng
@@ -323,15 +341,14 @@ class RuntimeProperty:
     return next_key
 
 
-class OverrideProperty(RuntimeProperty):
-  def __init__(self, parent, override):
-    self.parent = parent
-    self._override = dict(override)
+class _PropertyHolder(threading.local):
+  """Thread local storage for runtime properties.
 
-  def __getattr__(self, name):
-    if name in self._override:
-      return self._override[name]
-    return getattr(self.parent, name)
+  The content is ensured to be isolated across threads.
+  """
+
+  def __init__(self, content_factory: Callable[[], RuntimeProperty]):
+    self.content: RuntimeProperty = content_factory()
 
 
 class Environment(contextlib.ContextDecorator):
@@ -364,17 +381,17 @@ class Environment(contextlib.ContextDecorator):
 
     autocast_dtype = None
 
-    _prng_key = jax.random.key(torch.initial_seed() % (1 << 63))
-    self._property = threading.local()
-    self._initial_content = RuntimeProperty(
-      mesh=_mesh, prng=_prng_key, autocast_dtype=autocast_dtype
+    self._property = _PropertyHolder(
+      content_factory=lambda: RuntimeProperty(
+        mesh=_mesh,
+        prng=jax.random.key(torch.initial_seed() % (1 << 63)),
+        autocast_dtype=autocast_dtype,
+      )
     )
 
   @property
-  def param(self):
-    if not hasattr(self._property, "content"):
-      self._property.content = [self._initial_content]
-    return self._property.content[-1]
+  def param(self) -> RuntimeProperty:
+    return self._property.content
 
   def manual_seed(self, key):
     if isinstance(key, torch.Tensor):
@@ -386,8 +403,8 @@ class Environment(contextlib.ContextDecorator):
       else:
         key = key.item()
     jax_key = jax.random.PRNGKey(key)
-    new_prop = self.param.override(prng=jax_key)
-    self._property.content.append(new_prop)
+    new_prop = RuntimeProperty.override(self._property.content, prng=jax_key)
+    self._property.content = new_prop
 
   @property
   def prng_key(self):
@@ -722,8 +739,16 @@ class Environment(contextlib.ContextDecorator):
     )
 
   @contextlib.contextmanager
-  def override_property(self, **kwargs):
-    new_prop = self.param.override(**kwargs)
-    self._property.content.append(new_prop)
-    yield
-    self._property.content.pop()
+  def override_property(self, *, mesh=_none, prng=_none, autocast_dtype=_none):
+    old_prop = self._property.content
+    new_prop = RuntimeProperty.override(
+      old_prop,
+      mesh=mesh,
+      prng=prng,
+      autocast_dtype=autocast_dtype,
+    )
+    self._property.content = new_prop
+    try:
+      yield
+    finally:
+      self._property.content = old_prop
