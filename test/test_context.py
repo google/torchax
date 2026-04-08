@@ -14,6 +14,7 @@
 
 import unittest
 
+import jax
 import torch
 
 import torchax
@@ -43,6 +44,14 @@ class TestContext(unittest.TestCase):
     x, y = self._test_mode_decorator()
     self.assertIsInstance(x, tensor.Tensor)
     self.assertIsInstance(y, tensor.Tensor)
+
+  def test_override_property(self):
+    env = tensor.Environment()
+    old = env.param.prng
+    new = jax.random.key(1234)
+    with env.override_property(prng=new):
+      self.assertTrue((env.param.prng == new).all().item())
+    self.assertTrue((env.param.prng == old).all().item())
 
   def test_same_manual_seed(self):
     with xla_env:
