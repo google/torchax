@@ -19,7 +19,7 @@ pip install -e .
 pytest test
 ```
 
-## Setup on GPU or TPU
+## TPU Setup
 
 Same as Mac setup, except, if you run test using pytest, please also
 add `JAX_PLATFORMS=cpu`. The reason is because pytest usually runs
