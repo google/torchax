@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import concurrent.futures
 import threading
 import unittest
 
@@ -19,12 +20,11 @@ import torchax
 
 
 class TestThreading(unittest.TestCase):
-  def test_access_config_thread(reraise):
+  def test_access_config_thread(self):
     torchax.default_env()
 
     def task():
-      with reraise:
-        print(torchax.default_env().param)
+      print(torchax.default_env().param)
 
     threads = []
     for _ in range(5):
@@ -34,6 +34,24 @@ class TestThreading(unittest.TestCase):
 
     for thread in threads:
       thread.join()
+
+  def test_thread_safe_init(self):
+    # Force a reset to simulate pristine state
+    torchax._env = None
+
+    def task():
+      return torchax.default_env()
+
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+      futures = [executor.submit(task) for _ in range(32)]
+      results = [f.result() for f in futures]
+
+    # All threads should return the same environment object
+    assert len(results) > 0
+    lead = results[0]
+    for r in results:
+      self.assertIsNotNone(r)
+      self.assertIs(r, lead)
 
 
 if __name__ == "__main__":
