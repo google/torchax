@@ -15,6 +15,7 @@
 import contextlib
 import dataclasses
 import os
+import threading
 from contextlib import contextmanager
 from typing import Any
 
@@ -40,6 +41,7 @@ __all__ = [
   "default_env",
   "extract_jax",
   "enable_globally",
+  "disable_globally",
   "save_checkpoint",
   "load_checkpoint",
 ]
@@ -55,15 +57,31 @@ if getattr(jax.config, "jax_pjrt_client_create_options", None):
   )
 # torchax:oss-end
 
-env = None
+_env: tensor.Environment | None = None
+_env_lock = threading.Lock()
 
 
-def default_env():
-  global env
+def default_env() -> tensor.Environment:
+  """Returns the default environment.
 
-  if env is None:
-    env = tensor.Environment()
-  return env
+  The (global) environment is constructed lazily on the first call,
+  with default configuration. Construct it manually for advanced
+  configuration.
+  """
+  global _env
+
+  if _env is None:
+    # The first thread that enters this block will create the environment.
+    # Other threads will wait for the lock to be released and then return
+    # the environment.
+    with _env_lock:
+      if _env is not None:
+        return _env
+
+      _env = tensor.Environment()
+
+  assert _env is not None
+  return _env
 
 
 def extract_jax(mod: torch.nn.Module, env=None, *, dedup_parameters=True):
@@ -94,13 +112,15 @@ def extract_jax(mod: torch.nn.Module, env=None, *, dedup_parameters=True):
   return states, jax_func
 
 
-def enable_globally():
-  env = default_env().enable_torch_modes()
-  return env
+def enable_globally() -> None:
+  """Enables torchax globally."""
+
+  default_env().enable_torch_modes()
 
 
-def disable_globally():
-  global env
+def disable_globally() -> None:
+  """Disables torchax globally."""
+
   default_env().disable_torch_modes()
 
 
