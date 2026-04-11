@@ -62,34 +62,50 @@ class JittableModuleTest(unittest.TestCase):
     expected_output = input_tensor + 1
 
     output = jittable_module.functional_call(
-      outer_function, jittable_module.params, jittable_module.buffers, input_tensor
+      outer_function,
+      jittable_module.params,
+      jittable_module.buffers,
+      jax.random.PRNGKey(0),
+      input_tensor,
     )
 
     assert torch.equal(output, expected_output)
 
-  def test_take_rng_requires_rng_kwarg(self):
+  def test_forward_reads_rng_from_env(self):
+    torchax.enable_globally()
+
     class PlusOne(torch.nn.Module):
       def forward(self, x):
         return x + 1
 
-    jittable_module = interop.JittableModule(PlusOne(), take_rng=True)
-    with self.assertRaisesRegex(TypeError, "requires a `rng` kwarg"):
-      jittable_module(torch.ones(2, 2))
+    jittable_module = interop.JittableModule(PlusOne().to("jax"))
+    env = torchax.default_env()
+    start_rng = env.prng_key
 
-  def test_take_rng_removes_rng_before_module_call(self):
+    with env:
+      output = jittable_module(torch.ones(2, 2).to("jax"))
+
+    self.assertTrue(torch.equal(output, torch.full((2, 2), 2.0).to("jax")))
+    self.assertFalse(jax.numpy.array_equal(start_rng, env.prng_key))
+
+  def test_functional_call_does_not_pass_rng_to_module(self):
     class PlusOne(torch.nn.Module):
       def forward(self, x):
         return x + 1
 
-    jittable_module = interop.JittableModule(PlusOne(), take_rng=True)
+    jittable_module = interop.JittableModule(PlusOne())
     x = torch.randn(2, 2)
     expected = x + 1
     output = jittable_module.functional_call(
-      "forward", jittable_module.params, jittable_module.buffers, x, rng=object()
+      "forward",
+      jittable_module.params,
+      jittable_module.buffers,
+      jax.random.PRNGKey(0),
+      x,
     )
     assert torch.equal(output, expected)
 
-  def test_take_rng_controls_random_ops(self):
+  def test_forward_controls_random_ops_from_env(self):
     torchax.enable_globally()
 
     class RandomOut(torch.nn.Module):
@@ -97,17 +113,21 @@ class JittableModuleTest(unittest.TestCase):
         return torch.randn_like(x)
 
     model = RandomOut().to("jax")
-    jittable_module = interop.JittableModule(model, take_rng=True)
+    jittable_module = interop.JittableModule(model)
     x = torch.ones(16, 16).to("jax")
+    env = torchax.default_env()
 
-    same_rng_1 = jittable_module(x, rng=jax.random.PRNGKey(0))
-    same_rng_2 = jittable_module(x, rng=jax.random.PRNGKey(0))
-    different_rng = jittable_module(x, rng=jax.random.PRNGKey(1))
+    with env.override_property(prng=jax.random.PRNGKey(0)):
+      same_rng_1 = jittable_module(x)
+    with env.override_property(prng=jax.random.PRNGKey(0)):
+      same_rng_2 = jittable_module(x)
+    with env.override_property(prng=jax.random.PRNGKey(1)):
+      different_rng = jittable_module(x)
 
     self.assertTrue(torch.equal(same_rng_1, same_rng_2))
     self.assertFalse(torch.equal(same_rng_1, different_rng))
 
-  def test_take_rng_controls_random_ops_for_jitted_functional_call(self):
+  def test_forward_uses_supplied_env(self):
     torchax.enable_globally()
 
     class RandomOut(torch.nn.Module):
@@ -115,7 +135,50 @@ class JittableModuleTest(unittest.TestCase):
         return torch.randn_like(x)
 
     model = RandomOut().to("jax")
-    jittable_module = interop.JittableModule(model, take_rng=True)
+    module_env = torchax.tensor.Environment()
+    jittable_module = interop.JittableModule(model, env=module_env)
+    x = torch.ones(16, 16).to("jax")
+
+    with module_env.override_property(prng=jax.random.PRNGKey(0)):
+      same_rng_1 = jittable_module(x)
+    with module_env.override_property(prng=jax.random.PRNGKey(0)):
+      same_rng_2 = jittable_module(x)
+    with module_env.override_property(prng=jax.random.PRNGKey(1)):
+      different_rng = jittable_module(x)
+
+    self.assertTrue(torch.equal(same_rng_1, same_rng_2))
+    self.assertFalse(torch.equal(same_rng_1, different_rng))
+
+  def test_with_rng_context_manager(self):
+    torchax.enable_globally()
+
+    class RandomOut(torch.nn.Module):
+      def forward(self, x):
+        return torch.randn_like(x)
+
+    model = RandomOut().to("jax")
+    jittable_module = interop.JittableModule(model)
+    x = torch.ones(16, 16).to("jax")
+
+    with jittable_module.with_rng(jax.random.PRNGKey(0)):
+      same_rng_1 = jittable_module(x)
+    with jittable_module.with_rng(jax.random.PRNGKey(0)):
+      same_rng_2 = jittable_module(x)
+    with jittable_module.with_rng(jax.random.PRNGKey(1)):
+      different_rng = jittable_module(x)
+
+    self.assertTrue(torch.equal(same_rng_1, same_rng_2))
+    self.assertFalse(torch.equal(same_rng_1, different_rng))
+
+  def test_functional_call_controls_random_ops(self):
+    torchax.enable_globally()
+
+    class RandomOut(torch.nn.Module):
+      def forward(self, x):
+        return torch.randn_like(x)
+
+    model = RandomOut().to("jax")
+    jittable_module = interop.JittableModule(model)
     x = torch.ones(16, 16).to("jax")
 
     jitted_functional = interop.jax_jit(
@@ -123,13 +186,22 @@ class JittableModuleTest(unittest.TestCase):
     )
 
     same_rng_1 = jitted_functional(
-      jittable_module.params, jittable_module.buffers, x, rng=jax.random.PRNGKey(0)
+      jittable_module.params,
+      jittable_module.buffers,
+      jax.random.PRNGKey(0),
+      x,
     )
     same_rng_2 = jitted_functional(
-      jittable_module.params, jittable_module.buffers, x, rng=jax.random.PRNGKey(0)
+      jittable_module.params,
+      jittable_module.buffers,
+      jax.random.PRNGKey(0),
+      x,
     )
     different_rng = jitted_functional(
-      jittable_module.params, jittable_module.buffers, x, rng=jax.random.PRNGKey(1)
+      jittable_module.params,
+      jittable_module.buffers,
+      jax.random.PRNGKey(1),
+      x,
     )
 
     self.assertTrue(torch.equal(same_rng_1, same_rng_2))

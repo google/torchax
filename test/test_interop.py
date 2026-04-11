@@ -137,7 +137,12 @@ class InteropTest(unittest.TestCase):
     )
 
     # act
-    actual = functional_forward(m_jitted.params, m_jitted.buffers, x)
+    actual = functional_forward(
+      m_jitted.params,
+      m_jitted.buffers,
+      jax.random.PRNGKey(0),
+      x,
+    )
     # assert
     torch.testing.assert_allclose(actual, expected)
 
