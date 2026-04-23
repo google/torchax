@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import collections
+import contextlib
 import copy
 import functools
 from functools import wraps
@@ -77,12 +78,19 @@ def set_all_buffers(m, params, buffers):
 
 
 class JittableModule(torch.nn.Module):
-  def __init__(self, m: torch.nn.Module, extra_jit_args=None, dedup_parameters=True):
+  def __init__(
+    self,
+    m: torch.nn.Module,
+    env: tensor.Environment | None = None,
+    extra_jit_args=None,
+    dedup_parameters=True,
+  ):
     if extra_jit_args is None:
       extra_jit_args = {}
     super().__init__()
     self.params, self.buffers = extract_all_buffers(m)
     self._model = m
+    self._env = env or torchax.default_env()
     self._jitted = {}
 
     self._extra_jit_args = extra_jit_args
@@ -107,11 +115,9 @@ class JittableModule(torch.nn.Module):
     # isinstance(jittable_module, self._model.__class__) works
     return self._model.__class__
 
-  def __call__(self, *args, **kwargs):
-    return self.forward(*args, **kwargs)
-
-  def functional_call(self, method_or_name, params, buffers, *args, **kwargs):
+  def functional_call(self, method_or_name, params, buffers, rng, *args, **kwargs):
     kwargs = kwargs or {}
+    rng = _jax_view(rng)
     params_copy = copy.copy(params)
     params_copy.update(buffers)
     # reinflate the state dict so there are not any missing keys
@@ -128,9 +134,18 @@ class JittableModule(torch.nn.Module):
         )
       method = method_or_name
       args = (self._model,) + args
-    with torch_stateless._reparametrize_module(self._model, params_copy):
-      res = method(*args, **kwargs)
+    with self._env as env:
+      with (
+        env.override_property(prng=rng),
+        torch_stateless._reparametrize_module(self._model, params_copy),
+      ):
+        res = method(*args, **kwargs)
     return res
+
+  @contextlib.contextmanager
+  def with_rng(self, rng):
+    with self._env.override_property(prng=_jax_view(rng)):
+      yield self
 
   def jittable_call(self, method_name: str, *args, **kwargs):
     if method_name not in self._jitted:
@@ -140,7 +155,8 @@ class JittableModule(torch.nn.Module):
       )
 
       def jitted_forward(*args, **kwargs):
-        return jitted(self.params, self.buffers, *args, **kwargs)
+        rng = jax.random.key_data(self._env.get_and_rotate_prng_key())
+        return jitted(self.params, self.buffers, rng, *args, **kwargs)
 
       self._jitted[method_name] = jitted_forward
     return self._jitted[method_name](*args, **kwargs)
@@ -162,7 +178,8 @@ class JittableModule(torch.nn.Module):
     )
 
     def call(*args, **kwargs):
-      return jitted(self.params, self.buffers, *args, **kwargs)
+      rng = jax.random.key_data(self._env.get_and_rotate_prng_key())
+      return jitted(self.params, self.buffers, rng, *args, **kwargs)
 
     self._jitted[key] = call
 

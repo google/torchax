@@ -261,12 +261,13 @@ class Trainer:
         xla_env._mesh = self.mesh
         xla_env.use_flash_attention = True
 
-        jittable_mod = JittableModule(model)
+        jittable_mod = JittableModule(model, env=xla_env)
 
         # split the params to the n devices
 
         def model_fn(weights, buffers, args):
-            return jittable_mod.functional_call('forward', weights, buffers, args)
+            rng = jax.random.key_data(xla_env.get_and_rotate_prng_key())
+            return jittable_mod.functional_call('forward', weights, buffers, rng, *args)
 
 
         jax_optimizer = optax.sgd(0.01)
