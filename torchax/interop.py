@@ -17,6 +17,7 @@ import copy
 import functools
 from functools import wraps
 from inspect import signature
+from typing import TypeVar, overload
 
 import jax
 import jax.numpy as jnp
@@ -28,6 +29,9 @@ import torchax
 from torchax import tensor, util
 from torchax.ops import mappings
 from torchax.types import JaxCallable, JaxValue, TorchCallable, TorchValue
+
+_T = TypeVar("_T")
+
 
 try:
   from jax import shard_map as shard_map  # for jax since v0.8.0
@@ -177,6 +181,40 @@ def _torch_view(t: JaxValue) -> TorchValue:
 
 
 torch_view = functools.partial(pytree.tree_map, _torch_view)
+"""Tree-map "JAX to PyTorch" transformation.
+
+Use torch_view_elem for better typing support if we don't need tree-map.
+"""
+
+
+@overload
+def torch_view_elem(v: jax.Array) -> torch.Tensor: ...
+
+
+@overload
+def torch_view_elem(v: jnp.dtype) -> torch.dtype: ...
+
+
+@overload
+def torch_view_elem(v: JaxCallable) -> TorchCallable: ...
+
+
+@overload
+def torch_view_elem(v: _T) -> _T: ...
+
+
+def torch_view_elem(v: JaxValue) -> TorchValue:
+  """Apply "JAX to PyTorch" transformation.
+
+  * jax.Array -> torch.Tensor: tensor transform
+  * jnp.dtype -> torch.dtype: dtype transform
+  * JaxCallable -> TorchCallable: function transform
+  * T -> T: other regular types remain unchanged
+
+  Function transform is not very friendly for typing system.
+  Write a dedicate function if needed.
+  """
+  return _torch_view(v)
 
 
 def _jax_view(t: TorchValue) -> JaxValue:
@@ -196,6 +234,40 @@ def _jax_view(t: TorchValue) -> JaxValue:
 
 
 jax_view = functools.partial(pytree.tree_map, _jax_view)
+"""Tree-map "PyTorch to JAX" transformation.
+
+Use jax_view_elem for better typing support if we don't need tree-map.
+"""
+
+
+@overload
+def jax_view_elem(v: torch.Tensor) -> jax.Array: ...
+
+
+@overload
+def jax_view_elem(v: torch.dtype) -> jnp.dtype: ...
+
+
+@overload
+def jax_view_elem(v: TorchCallable) -> JaxCallable: ...
+
+
+@overload
+def jax_view_elem(v: _T) -> _T: ...
+
+
+def jax_view_elem(v: TorchValue) -> JaxValue:
+  """Apply "PyTorch to JAX" transformation.
+
+  * torch.Tensor -> jax.Array: tensor transform
+  * torch.dtype -> jnp.dtype: dtype transform
+  * TorchCallable -> JaxCallable: function transform
+  * T -> T: other regular types remain unchanged
+
+  Function transform is not very friendly for typing system.
+  Write a dedicate function if needed.
+  """
+  return _jax_view(v)
 
 
 def call_jax(
