@@ -298,6 +298,8 @@ TENSOR_CONSTRUCTORS = {
   torch.randint,
   torch.full,
   torch.as_tensor,
+  torch.linspace,
+  torch.logspace,
 }
 
 # TODO(wen): use existing types, either from torch or jax
