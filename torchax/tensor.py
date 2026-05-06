@@ -15,6 +15,7 @@
 import contextlib
 import itertools
 import logging
+import math
 import sys
 import threading
 from collections.abc import Callable
@@ -96,7 +97,10 @@ class Tensor(torch.Tensor):
   def flatten(self, start_dim=0, end_dim=-1):
     if end_dim == -1:
       end_dim = self.ndim
-    new_shape = self._elem.shape[:start_dim] + (-1,) + self._elem.shape[end_dim + 1 :]
+    flattened_size = math.prod(self._elem.shape[start_dim : end_dim + 1])
+    new_shape = (
+      self._elem.shape[:start_dim] + (flattened_size,) + self._elem.shape[end_dim + 1 :]
+    )
     new_elem = jnp.reshape(self._elem, new_shape)
     return Tensor(new_elem, self._env)
     # return torch.reshape(self, new_shape)
