@@ -80,9 +80,29 @@ class TestTorchFunctions(parameterized.TestCase):
 
   def test_flatten(self):
     with self.env:
-      a = torch.randn((2, 3, 4))
+      a = torch.randn((2, 3, 4)).to(device="jax")
       a = a.flatten(0, 1)
       self.assertEqual(tuple(a.shape), (6, 4))
+
+      # New test case for testing tensor flattening on zero dimension
+      a = torch.ones((16, 0)).to(device="jax")
+      a = a.flatten(0, -2)
+      self.assertEqual(a.shape, torch.Size([16, 0]))
+
+      # Flattening tensors with zero dimension containing in flattening dimension
+      a = torch.randn((2, 1, 0, 5)).to(device="jax")
+      a = a.flatten(2, 3)
+      self.assertEqual(a.shape, torch.Size([2, 1, 0]))
+
+      # Flattening tensors with zero dimension containing in non-flattening dimension
+      a = torch.randn((2, 0, 1, 5)).to(device="jax")
+      a = a.flatten(2, 3)
+      self.assertEqual(a.shape, torch.Size([2, 0, 5]))
+
+      # Flattening tensors with zero dimension containing in flattening dimension and non-flattening dimension
+      a = torch.randn((2, 0, 0, 5)).to(device="jax")
+      a = a.flatten(2, 3)
+      self.assertEqual(a.shape, torch.Size([2, 0, 0]))
 
   def test_rnn(self):
     model = SeqModel()
