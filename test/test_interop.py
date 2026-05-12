@@ -179,5 +179,54 @@ class InteropTest(unittest.TestCase):
     self.assertEqual(interop.torch_view(interop.jax_view(dtype)), dtype)
 
 
+class JaxJitPRNGThreadingTest(unittest.TestCase):
+  """Regression tests for PRNG-key threading through `wrap_jax_jit`. Closes #17."""
+
+  def setUp(self):
+    torchax.enable_globally()
+    self.env = torchax.default_env()
+    dropout = torch.nn.Dropout(p=0.5).train()
+    self.jitted = interop.jax_jit(lambda x: dropout(x))
+    self.x = torch.ones(64, device="jax")
+
+  def test_random_op_does_not_leak_tracer(self):
+    """One jit-wrapped call with a random op must not leak a tracer into env.prng_key."""
+    self.jitted(self.x)
+    self.assertFalse(
+      isinstance(self.env.prng_key, jax.core.Tracer),
+      f"env.prng_key leaked a {type(self.env.prng_key).__name__}",
+    )
+
+  def test_consecutive_calls_advance_prng(self):
+    """Two same-input calls must differ — the threaded prng key advances."""
+    a = self.jitted(self.x)
+    b = self.jitted(self.x)
+    self.assertFalse(torch.allclose(a, b), "PRNG key not rotating between calls")
+
+  def test_setter_symmetric_with_getter(self):
+    """`env.prng_key = key` round-trips through the getter."""
+    new_key = jax.random.PRNGKey(0xDEADBEEF)
+    self.env.prng_key = new_key
+    self.assertTrue(
+      jax.numpy.array_equal(
+        jax.random.key_data(self.env.prng_key), jax.random.key_data(new_key)
+      )
+    )
+
+  def test_manual_seed_controls_output(self):
+    """Same seed → same outputs; different seed → different; successive calls advance."""
+    self.env.manual_seed(42)
+    a1, a2 = self.jitted(self.x), self.jitted(self.x)
+    self.env.manual_seed(42)
+    b1, b2 = self.jitted(self.x), self.jitted(self.x)
+    self.env.manual_seed(99)
+    c1 = self.jitted(self.x)
+
+    torch.testing.assert_close(a1, b1)
+    torch.testing.assert_close(a2, b2)
+    self.assertFalse(torch.allclose(a1, c1), "different seeds produced same output")
+    self.assertFalse(torch.allclose(a1, a2), "PRNG did not advance within seed scope")
+
+
 if __name__ == "__main__":
   unittest.main()

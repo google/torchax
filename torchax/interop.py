@@ -384,10 +384,32 @@ fori_loop = torch_view(jax.lax.fori_loop)
 
 
 def wrap_jax_jit(torch_function, jax_jit_func=jax.jit, kwargs_for_jax=None):
+  """Jit a torch function via JAX, threading the PRNG key through the jit
+  boundary so random ops (dropout, bernoulli, …) don't leak tracers into
+  `env.prng_key`. The key is appended as the last positional input/output
+  so positional `donate_argnums` stays valid. Callers passing
+  `in_shardings`/`out_shardings`/`in_specs`/`out_specs` must extend them
+  by one replicated entry for the prng leaf.
+  """
   kwargs_for_jax = kwargs_for_jax or {}
+  env = torchax.default_env()
   jax_func = jax_view(torch_function)
-  jitted = jax_jit_func(jax_func, **kwargs_for_jax)
-  return torch_view(jitted)
+
+  def jax_func_with_prng(*args_and_key, **kwargs):
+    *args, prng_key = args_and_key
+    with env.override_property(prng=prng_key):
+      out = jax_func(*args, **kwargs)
+      new_key = env.prng_key
+    return out, new_key
+
+  jitted = jax_jit_func(jax_func_with_prng, **kwargs_for_jax)
+
+  def call_with_prng(*args, **kwargs):
+    out, new_key = jitted(*args, env.prng_key, **kwargs)
+    env.prng_key = new_key
+    return out
+
+  return torch_view(call_with_prng)
 
 
 def jax_jit(torch_function, kwargs_for_jax_jit=None, fix_for_buffer_donation=False):
