@@ -425,11 +425,33 @@ def jax_shard_map(torch_function, kwargs_for_jax_shard_map=None):
 
 
 def jax_value_and_grad(torch_function, kwargs_for_value_and_grad=None):
-  return wrap_jax_jit(
-    torch_function,
-    jax_jit_func=jax.value_and_grad,
-    kwargs_for_jax=kwargs_for_value_and_grad,
+  """value_and_grad with the PRNG key threaded through the aux slot so it does
+  not become a non-scalar second return value that `jax.value_and_grad` would
+  try to differentiate.
+  """
+  kwargs_for_value_and_grad = dict(kwargs_for_value_and_grad or {})
+  user_has_aux = kwargs_for_value_and_grad.pop("has_aux", False)
+  env = torchax.default_env()
+  jax_func = jax_view(torch_function)
+
+  def jax_func_with_prng(*args_and_key, **kwargs):
+    *args, prng_key = args_and_key
+    with env.override_property(prng=prng_key):
+      out = jax_func(*args, **kwargs)
+      new_key = env.prng_key
+    loss, user_aux = out if user_has_aux else (out, None)
+    return loss, (user_aux, new_key)
+
+  graded = jax.value_and_grad(
+    jax_func_with_prng, has_aux=True, **kwargs_for_value_and_grad
   )
+
+  def call_with_prng(*args, **kwargs):
+    (loss, (user_aux, new_key)), grad = graded(*args, env.prng_key, **kwargs)
+    env.prng_key = new_key
+    return ((loss, user_aux), grad) if user_has_aux else (loss, grad)
+
+  return torch_view(call_with_prng)
 
 
 def gradient_checkpoint(torch_function, kwargs=None):
