@@ -111,6 +111,9 @@ class JittableModule(torch.nn.Module):
     # isinstance(jittable_module, self._model.__class__) works
     return self._model.__class__
 
+  def __call__(self, *args, **kwargs):
+    return self.forward(*args, **kwargs)
+
   def functional_call(self, method_or_name, params, buffers, rng, *args, **kwargs):
     kwargs = kwargs or {}
     rng = _jax_view(rng)
@@ -139,8 +142,8 @@ class JittableModule(torch.nn.Module):
     return res
 
   @contextlib.contextmanager
-  def with_rng(self, rng):
-    with self._env.override_property(prng=_jax_view(rng)):
+  def with_rng(self, rng: jax.Array):
+    with self._env.override_property(prng=rng):
       yield self
 
   def jittable_call(self, method_name: str, *args, **kwargs):
