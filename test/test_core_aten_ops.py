@@ -1839,7 +1839,29 @@ class TestCoreAtenOps(unittest.TestCase):
     kwargs = {}
     run_export_and_compare(self, torch.ops.aten.index_put, args, kwargs)
 
+  def test_aten_index_put_boolean_mask_scalar(self):
+
+    mask = torch.tensor([[True, False, True], [False, True, False]])
+    args = (
+      torch.zeros((2, 3)).to(torch.float32),
+      [mask],
+      torch.tensor(5.0).to(torch.float32),
+    )
+    kwargs = {}
+    run_export_and_compare(self, torch.ops.aten.index_put, args, kwargs)
+
+  def test_aten_index_put_boolean_mask_tensor(self):
+    mask = torch.tensor([[True, False, True], [False, True, False]])
+    args = (
+      torch.zeros((2, 3)).to(torch.float32),
+      [mask],
+      torch.tensor([10.0, 20.0, 30.0]).to(torch.float32),
+    )
+    kwargs = {}
+    run_export_and_compare(self, torch.ops.aten.index_put, args, kwargs)
+
   def test_aten_index_select_0(self):
+
     args = (
       torch.randn((2, 10)).to(torch.float32),
       1,
@@ -2245,7 +2267,18 @@ class TestCoreAtenOps(unittest.TestCase):
     kwargs = {}
     run_export_and_compare(self, torch.ops.aten.lt.Tensor, args, kwargs)
 
+  def test_aten_masked_scatter_0(self):
+    mask = torch.tensor([[True, False, True], [False, True, False]])
+    args = (
+      torch.zeros((2, 3)).to(torch.float32),
+      mask,
+      torch.tensor([10.0, 20.0, 30.0, 40.0, 50.0]).to(torch.float32),
+    )
+    kwargs = {}
+    run_export_and_compare(self, torch.ops.aten.masked_scatter, args, kwargs)
+
   def test_aten_masked_fill_Scalar_0(self):
+
     args = (
       torch.randn((10, 10)).to(torch.float32),
       torch.randn((10, 10)).to(torch.bool),
