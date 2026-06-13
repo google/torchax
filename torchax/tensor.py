@@ -114,7 +114,9 @@ class Tensor(torch.Tensor):
     if isinstance(actual_key, jax.Array) and actual_key.dtype == jnp.bool_:
       from torchax.ops.jaten import _shape_static_boolean_index_put
 
-      self._elem = _shape_static_boolean_index_put(self._elem, actual_key, val)
+      self._elem = _shape_static_boolean_index_put(
+        self._elem, actual_key, val, is_sequential=False
+      )
     else:
       self._elem = self._elem.at[key].set(val)
 
