@@ -128,7 +128,6 @@ autocast_policy = {
   torch.ops.aten.grid_sampler_3d.default: CastPolicy.FP32,
   torch.ops.aten.trace.default: CastPolicy.FP32,
   torch.ops.aten.view_as_complex.default: CastPolicy.FP32,
-  torch.ops.aten.cholesky.default: CastPolicy.FP32,
   torch.ops.aten.cholesky_inverse.default: CastPolicy.FP32,
   torch.ops.aten.cholesky_solve.default: CastPolicy.FP32,
   torch.ops.aten.inverse.default: CastPolicy.FP32,
