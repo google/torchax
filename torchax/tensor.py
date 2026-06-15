@@ -107,7 +107,18 @@ class Tensor(torch.Tensor):
 
   def __setitem__(self, key, val):
     key, val = self._env.t2j_iso((key, val))
-    self._elem = self._elem.at[key].set(val)
+    actual_key = key
+    if isinstance(key, tuple) and len(key) == 1:
+      actual_key = key[0]
+
+    if isinstance(actual_key, jax.Array) and actual_key.dtype == jnp.bool_:
+      from torchax.ops.jaten import _shape_static_boolean_index_put
+
+      self._elem = _shape_static_boolean_index_put(
+        self._elem, actual_key, val, is_sequential=False
+      )
+    else:
+      self._elem = self._elem.at[key].set(val)
 
   def type_as(self, other):
     self._elem = self._elem.astype(other._elem.dtype)

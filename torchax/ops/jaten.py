@@ -763,10 +763,103 @@ def _aten_empty_strided(sizes, stride, dtype=None, **kwargs):
   return jnp.empty(sizes, dtype=dtype)
 
 
+def _shape_static_boolean_index_put(
+  self, mask, values, accumulate=False, is_sequential=False, left_align_mask=True
+):
+  # Align mask dimensions to self dimensions
+  if left_align_mask and mask.ndim < self.ndim:
+    expanded_mask = jnp.expand_dims(mask, axis=list(range(mask.ndim, self.ndim)))
+    broadcasted_mask = jnp.broadcast_to(expanded_mask, self.shape)
+  else:
+    broadcast_shape = jnp.broadcast_shapes(self.shape, mask.shape)
+    if self.shape != broadcast_shape:
+      self = jnp.broadcast_to(self, broadcast_shape)
+    if mask.shape != broadcast_shape:
+      broadcasted_mask = jnp.broadcast_to(mask, broadcast_shape)
+    else:
+      broadcasted_mask = mask
+
+  # index_put with scalars or compatible tensors
+  val_shape = getattr(values, "shape", ())
+  val_size = getattr(values, "size", 1)
+
+  is_effectively_scalar = (len(val_shape) == 0) or (val_size == 1)
+  is_same_shape = val_shape == self.shape
+  is_slice_broadcast = (mask.ndim < self.ndim) and (
+    val_shape == self.shape[mask.ndim :]
+  )
+
+  if not is_sequential and (
+    is_effectively_scalar or is_same_shape or is_slice_broadcast
+  ):
+    values_broadcasted = jnp.broadcast_to(values, self.shape)
+    if accumulate:
+      return jnp.where(broadcasted_mask, self + values_broadcasted, self)
+    else:
+      return jnp.where(broadcasted_mask, values_broadcasted, self)
+
+  # General case: Dummy Row pattern
+  self_flat = self.flatten()
+  mask_flat = broadcasted_mask.flatten()
+
+  # Broadcast values suffix dimensions to suffix_shape
+  suffix_shape = self.shape[mask.ndim :]
+  if not is_sequential:
+    if len(val_shape) == len(suffix_shape) + 1:
+      target_val_shape = (values.shape[0],) + suffix_shape
+      values = jnp.broadcast_to(values, target_val_shape)
+
+  val_flat = values.flatten()
+
+  # Target length from self
+  target_len = self_flat.shape[0]
+  curr_val_len = val_flat.shape[0]
+
+  # Pad to max sequence length to ensure static HLO
+  if curr_val_len < target_len:
+    padding = jnp.zeros(
+      (target_len - curr_val_len,) + val_flat.shape[1:], dtype=val_flat.dtype
+    )
+    val_flat = jnp.concatenate([val_flat, padding], axis=0)
+
+  # Now perform the Dummy Row concatenation
+  zero_row = jnp.zeros((1,) + val_flat.shape[1:], dtype=val_flat.dtype)
+  padded_val = jnp.concatenate([zero_row, val_flat], axis=0)
+
+  # Cumulative sum of mask_flat to find indices directly.
+  # Cumsum is 1-based index count of True elements.
+  # Every False position before the first True will be 0 (pointing to dummy row).
+  # Every True position will point to its corresponding 1-based index in padded_val.
+  mask_int = mask_flat.astype(jnp.int32)
+  idx = jnp.cumsum(mask_int)
+
+  # Gather elements from padded_val using idx directly (no clip, no -1)
+  values_from_source = padded_val[idx]
+
+  # Use jnp.where to write elements only where mask is True
+  if accumulate:
+    res_flat = jnp.where(mask_flat, self_flat + values_from_source, self_flat)
+  else:
+    res_flat = jnp.where(mask_flat, values_from_source, self_flat)
+
+  return res_flat.reshape(self.shape)
+
+
 @op(torch.ops.aten.index_put)
 def _aten_index_put(self, indexes, values, accumulate=False):
   indexes = [slice(None, None, None) if i is None else i for i in indexes]
   indexes = tuple(indexes)
+
+  # Detect single boolean mask indexing
+  if (
+    len(indexes) == 1
+    and isinstance(indexes[0], jax.Array)
+    and indexes[0].dtype == jnp.bool_
+  ):
+    return _shape_static_boolean_index_put(
+      self, indexes[0], values, accumulate, is_sequential=False
+    )
+
   if accumulate:
     return self.at[indexes].add(values)
   else:
@@ -1788,22 +1881,9 @@ def _aten_scatter_add(input, dim, index, src):
 # aten.masked_scatter
 @op(torch.ops.aten.masked_scatter)
 def _aten_masked_scatter(self, mask, source):
-  broadcast_shape = jnp.broadcast_shapes(self.shape, mask.shape)
-
-  if self.shape != broadcast_shape:
-    self = jnp.broadcast_to(self, broadcast_shape)
-  elif mask.shape != broadcast_shape:
-    mask = jnp.broadcast_to(mask, broadcast_shape)
-
-  self_flat = self.flatten()
-  mask_flat = mask.flatten()
-  source_flat = source.flatten()
-
-  true_indices = jnp.where(mask_flat)[0]
-  self_flat = self_flat.at[true_indices].set(source_flat[: len(true_indices)])
-  final_arr = self_flat.reshape(self.shape)
-
-  return final_arr
+  return _shape_static_boolean_index_put(
+    self, mask, source, is_sequential=True, left_align_mask=False
+  )
 
 
 @op(torch.ops.aten.masked_select)
