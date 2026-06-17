@@ -427,6 +427,12 @@ class Environment(contextlib.ContextDecorator):
   def prng_key(self):
     return self.param.prng
 
+  @prng_key.setter
+  def prng_key(self, key):
+    # Mirror of the getter. Use `override_property(prng=...)` for
+    # trace-scoped keys; calling this inside `jax.jit` leaks a tracer.
+    self.param.prng = key
+
   def _should_use_torchax_tensor(self, device):
     if device is None:
       device = torch.get_default_device()
