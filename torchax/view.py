@@ -353,6 +353,16 @@ class View(torch.Tensor):
     args: tuple[Any, ...] = (),
     kwargs: dict | None = None,
   ) -> Any:
+    kwargs = kwargs or {}
+    # If a View is present in the args, delegate to its env so that View
+    # participates in arithmetic (e.g. View + Tensor) even when no
+    # XLADispatchMode context manager is active.  env.dispatch() calls
+    # v2t_iso() which materialises the View to a Tensor before the op runs.
+    view = next((a for a in args if isinstance(a, View)), None)
+    if view is None:
+      view = next((a for a in kwargs.values() if isinstance(a, View)), None)
+    if view is not None:
+      return view._env.dispatch(func, types, args, kwargs)
     raise AssertionError(
       "torchax Tensors can only do math within the torchax environment."
       "Please wrap your code with `with torchax.default_env()` or "

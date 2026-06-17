@@ -133,6 +133,18 @@ class Tensor(torch.Tensor):
       return args[0]._env.dispatch(func, types, args, kwargs)
     if func == torch.ops.prim.device.default:
       return torch.device("privateuseone", 0)
+    # Delegate to env.dispatch() when called outside XLADispatchMode.
+    # This handles ops like `Tensor + View` or `Tensor + Tensor` that arise
+    # when torchax tensors are used without an active dispatch mode context
+    # (e.g. during AOT lower where XLADispatchMode is not installed).
+    # env.dispatch() calls v2t_iso() to materialise any View args before
+    # running the JAX op.
+    kwargs = kwargs or {}
+    from torchax.view import View
+    flat = list(args) + list(kwargs.values())
+    env_holder = next((a for a in flat if isinstance(a, (Tensor, View))), None)
+    if env_holder is not None:
+      return env_holder._env.dispatch(func, types, args, kwargs)
     raise AssertionError(
       "torchax Tensors can only do math within the torchax environment."
       "Please wrap your code with `with torchax.default_env()` or "
