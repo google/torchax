@@ -30,6 +30,7 @@ skiplist = {
   "_segment_reduce",
   "bincount",  # NOTE: dtype for int input torch gives float. This is weird.
   "byte",
+  "cholesky", # To be removed from PyTorch, still covered by linalg.cholesky
   "cholesky_solve",
   "geqrf",
   "histogram",  # hard op: AssertionError: Tensor-likes are not close!

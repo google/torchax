@@ -203,7 +203,7 @@ def _aten_index_select(x, dim, index):
   return jnp.take(x, index, dim)
 
 
-@op(torch.ops.aten.cholesky)
+@op(torch.ops.aten.linalg_cholesky)
 def _aten_cholesky(input, upper=False):
   return jax.scipy.linalg.cholesky(input, lower=(not upper))
 
