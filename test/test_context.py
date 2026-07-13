@@ -20,6 +20,7 @@ import torch
 import torchax
 import torchax.interop
 from torchax import tensor
+from torchax.view import View
 
 xla_env = torchax.default_env()
 
@@ -31,6 +32,33 @@ class TestContext(unittest.TestCase):
       self.assertIsInstance(x, tensor.Tensor)
       y = x.abs()
       self.assertIsInstance(y, tensor.Tensor)
+
+  def test_arithmetic_outside_dispatch_mode(self):
+    # Tensors created inside `with xla_env:` remain torchax Tensor/View
+    # instances after the block exits, even though XLADispatchMode is no
+    # longer active. Ops on them then reach Tensor.__torch_dispatch__ /
+    # View.__torch_dispatch__ directly (the tensor-subclass fallback),
+    # rather than XLADispatchMode.__torch_dispatch__. This happens in
+    # practice when torchax tensors are captured by, and later used inside,
+    # a torch.compile/AOT-lowered region that runs outside `with xla_env:`.
+    with xla_env:
+      x = torch.ones((4, 4), device="jax")
+      y = torch.ones((4, 4), device="jax")
+      y_view = y[:, :]
+
+    self.assertIsInstance(x, tensor.Tensor)
+    self.assertIsInstance(y_view, View)
+    self.assertFalse(xla_env.enabled)
+
+    # Tensor + Tensor, outside the dispatch mode.
+    z1 = x + y
+    self.assertEqual(z1.sum().item(), 32.0)
+
+    # Tensor + View, outside the dispatch mode. Tensor is the left operand,
+    # so Tensor.__torch_dispatch__ (not View's) handles it first and must
+    # delegate to env.dispatch() rather than raise.
+    z2 = x + y_view
+    self.assertEqual(z2.sum().item(), 32.0)
 
   @staticmethod
   @xla_env
