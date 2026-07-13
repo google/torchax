@@ -130,6 +130,7 @@ class Tensor(torch.Tensor):
     # running the JAX op.
     kwargs = kwargs or {}
     from torchax.view import View
+
     flat = list(args) + list(kwargs.values())
     env_holder = next((a for a in flat if isinstance(a, (Tensor, View))), None)
     if env_holder is not None:
