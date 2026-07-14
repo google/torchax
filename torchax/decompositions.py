@@ -32,6 +32,8 @@ from torch import Tensor
 from torch._decomp import decompositions_for_rng, register_decomposition
 from torch._prims_common.wrappers import out_wrapper
 
+from torchax._torch_compat import get_aten_overload
+
 DispatchKey = torch._C.DispatchKey  # type: ignore[attr-defined]
 
 # None of these functions are publicly accessible; get at them
@@ -305,6 +307,34 @@ def _grid_sampler_3d(
     return get_summand(ix_nearest, iy_nearest, iz_nearest, 1)
 
 
+_OPTIONAL_NAMED_TENSOR_OVERLOADS = [
+  op
+  for op in (
+    get_aten_overload("all", "dimname"),
+    get_aten_overload("all", "dimname_out"),
+    get_aten_overload("index_add", "dimname"),
+    get_aten_overload("index_copy", "dimname"),
+    get_aten_overload("index_copy_", "dimname"),
+    get_aten_overload("index_fill", "Dimname_Scalar"),
+    get_aten_overload("index_fill", "Dimname_Tensor"),
+    get_aten_overload("index_fill_", "Dimname_Scalar"),
+    get_aten_overload("index_fill_", "Dimname_Tensor"),
+    get_aten_overload("norm", "names_ScalarOpt_dim"),
+    get_aten_overload("norm", "names_ScalarOpt_dim_dtype"),
+    get_aten_overload("norm", "names_dtype_out"),
+    get_aten_overload("norm", "names_out"),
+    get_aten_overload("std", "names_dim"),
+    get_aten_overload("std", "names_out"),
+    get_aten_overload("std", "correction_names"),
+    get_aten_overload("std", "correction_names_out"),
+    get_aten_overload("std_mean", "names_dim"),
+    get_aten_overload("std_mean", "correction_names"),
+    get_aten_overload("unbind", "Dimname"),
+  )
+  if op is not None
+]
+
+
 DECOMPOSITIONS = decomp.get_decompositions(
   [
     torch.ops.aten.upsample_bicubic2d,
@@ -354,8 +384,6 @@ DECOMPOSITIONS = decomp.get_decompositions(
     torch.ops.aten.all.out,
     torch.ops.aten.all.dims_out,
     torch.ops.aten.all.all_out,
-    torch.ops.aten.all.dimname,
-    torch.ops.aten.all.dimname_out,
     torch.ops.aten.aminmax.default,
     torch.ops.aten.aminmax.out,
     torch.ops.aten.arange.default,
@@ -469,23 +497,16 @@ DECOMPOSITIONS = decomp.get_decompositions(
     torch.ops.aten.im2col.out,
     torch.ops.aten.index_add.default,
     torch.ops.aten.index_add.out,
-    torch.ops.aten.index_add.dimname,
     torch.ops.aten.index_add_.default,
     torch.ops.aten.index_copy.default,
-    torch.ops.aten.index_copy.dimname,
     torch.ops.aten.index_copy.out,
     torch.ops.aten.index_copy_.default,
-    torch.ops.aten.index_copy_.dimname,
     torch.ops.aten.index_fill.int_Tensor,
     torch.ops.aten.index_fill.int_Scalar,
-    torch.ops.aten.index_fill.Dimname_Scalar,
-    torch.ops.aten.index_fill.Dimname_Tensor,
     torch.ops.aten.index_fill.int_Scalar_out,
     torch.ops.aten.index_fill.int_Tensor_out,
     torch.ops.aten.index_fill_.int_Tensor,
     torch.ops.aten.index_fill_.int_Scalar,
-    torch.ops.aten.index_fill_.Dimname_Scalar,
-    torch.ops.aten.index_fill_.Dimname_Tensor,
     torch.ops.aten.isin.Tensor_Tensor,
     torch.ops.aten.isin.Tensor_Tensor_out,
     torch.ops.aten.isin.Tensor_Scalar,
@@ -589,16 +610,12 @@ DECOMPOSITIONS = decomp.get_decompositions(
     torch.ops.aten.nll_loss_forward.output,
     torch.ops.aten.norm.Scalar,
     torch.ops.aten.norm.ScalarOpt_dim,
-    torch.ops.aten.norm.names_ScalarOpt_dim,
     torch.ops.aten.norm.ScalarOpt_dim_dtype,
     torch.ops.aten.norm.dtype_out,
     torch.ops.aten.norm.out,
     torch.ops.aten.norm.ScalarOpt_dtype,
     torch.ops.aten.norm.ScalarOpt_dtype_out,
     torch.ops.aten.norm.Scalar_out,
-    torch.ops.aten.norm.names_ScalarOpt_dim_dtype,
-    torch.ops.aten.norm.names_dtype_out,
-    torch.ops.aten.norm.names_out,
     torch.ops.aten.ones.default,
     torch.ops.aten.ones_like.default,
     torch.ops.aten.ones_like.out,
@@ -701,17 +718,11 @@ DECOMPOSITIONS = decomp.get_decompositions(
     torch.ops.aten.std.default,
     torch.ops.aten.std.dim,
     torch.ops.aten.std.correction,
-    torch.ops.aten.std.names_dim,
-    torch.ops.aten.std.names_out,
     torch.ops.aten.std.out,
     torch.ops.aten.std.correction_out,
-    torch.ops.aten.std.correction_names,
-    torch.ops.aten.std.correction_names_out,
     torch.ops.aten.std_mean.default,
     torch.ops.aten.std_mean.dim,
     torch.ops.aten.std_mean.correction,
-    torch.ops.aten.std_mean.names_dim,
-    torch.ops.aten.std_mean.correction_names,
     torch.ops.aten.std_mean.correction_out,
     torch.ops.aten.stack.default,
     torch.ops.aten.stack.out,
@@ -739,7 +750,6 @@ DECOMPOSITIONS = decomp.get_decompositions(
     torch.ops.aten.triu.out,
     torch.ops.aten.triu_.default,
     torch.ops.aten.unbind.int,
-    torch.ops.aten.unbind.Dimname,
     torch.ops.aten.unfold_backward.default,
     torch.ops.aten.unfold_backward.out,
     torch.ops.aten.unfold_copy.default,
@@ -787,6 +797,7 @@ DECOMPOSITIONS = decomp.get_decompositions(
     torch.ops.aten.__irshift__.Tensor,
     torch.ops.aten.__irshift__.Scalar,
     torch.ops.aten.__ior__.Tensor,
+    *_OPTIONAL_NAMED_TENSOR_OVERLOADS,
   ]
 )
 
