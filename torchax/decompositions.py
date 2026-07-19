@@ -32,8 +32,6 @@ from torch import Tensor
 from torch._decomp import decompositions_for_rng, register_decomposition
 from torch._prims_common.wrappers import out_wrapper
 
-from torchax._torch_compat import get_aten_overload
-
 DispatchKey = torch._C.DispatchKey  # type: ignore[attr-defined]
 
 # None of these functions are publicly accessible; get at them
@@ -305,34 +303,6 @@ def _grid_sampler_3d(
     iz_nearest = iz.round()
 
     return get_summand(ix_nearest, iy_nearest, iz_nearest, 1)
-
-
-_OPTIONAL_NAMED_TENSOR_OVERLOADS = [
-  op
-  for op in (
-    get_aten_overload("all", "dimname"),
-    get_aten_overload("all", "dimname_out"),
-    get_aten_overload("index_add", "dimname"),
-    get_aten_overload("index_copy", "dimname"),
-    get_aten_overload("index_copy_", "dimname"),
-    get_aten_overload("index_fill", "Dimname_Scalar"),
-    get_aten_overload("index_fill", "Dimname_Tensor"),
-    get_aten_overload("index_fill_", "Dimname_Scalar"),
-    get_aten_overload("index_fill_", "Dimname_Tensor"),
-    get_aten_overload("norm", "names_ScalarOpt_dim"),
-    get_aten_overload("norm", "names_ScalarOpt_dim_dtype"),
-    get_aten_overload("norm", "names_dtype_out"),
-    get_aten_overload("norm", "names_out"),
-    get_aten_overload("std", "names_dim"),
-    get_aten_overload("std", "names_out"),
-    get_aten_overload("std", "correction_names"),
-    get_aten_overload("std", "correction_names_out"),
-    get_aten_overload("std_mean", "names_dim"),
-    get_aten_overload("std_mean", "correction_names"),
-    get_aten_overload("unbind", "Dimname"),
-  )
-  if op is not None
-]
 
 
 DECOMPOSITIONS = decomp.get_decompositions(
@@ -797,7 +767,6 @@ DECOMPOSITIONS = decomp.get_decompositions(
     torch.ops.aten.__irshift__.Tensor,
     torch.ops.aten.__irshift__.Scalar,
     torch.ops.aten.__ior__.Tensor,
-    *_OPTIONAL_NAMED_TENSOR_OVERLOADS,
   ]
 )
 
