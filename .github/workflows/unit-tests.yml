@@ -57,3 +57,25 @@ jobs:
           for FILE in $(find docs -name '*.py'); do
               python $FILE
           done
+
+  pytorch-2-13-compatibility:
+    name: PyTorch 2.13 compatibility
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install torch==2.13.0 --index-url https://download.pytorch.org/whl/cpu
+          pip install pytest
+          pip install -e .[cpu]
+      - name: Test named tensor removal compatibility
+        env:
+          JAX_PLATFORMS: cpu
+        run: pytest test/test_torch_compat.py test/test_amp.py

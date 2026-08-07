@@ -18,6 +18,8 @@ import enum
 import torch
 from torch.utils import _pytree as pytree
 
+from torchax._torch_compat import get_aten_overload
+
 
 # enum class CastPolicy : uint8_t {
 #   lower_precision_fp = 0, // Cast all inputs to lower_precision_fp before
@@ -115,7 +117,6 @@ autocast_policy = {
   torch.ops.aten.polar.default: CastPolicy.FP32,
   torch.ops.aten.prod.default: CastPolicy.FP32,
   torch.ops.aten.prod.dim_int: CastPolicy.FP32,
-  torch.ops.aten.prod.dim_Dimname: CastPolicy.FP32,
   torch.ops.aten.quantile.default: CastPolicy.FP32,
   torch.ops.aten.quantile.scalar: CastPolicy.FP32,
   torch.ops.aten.nanquantile.default: CastPolicy.FP32,
@@ -213,5 +214,13 @@ autocast_policy = {
   torch.ops.aten.stack.default: CastPolicy.PROMOTE,
   torch.ops.aten.cat.default: CastPolicy.PROMOTE,
   torch.ops.aten.index_copy.default: CastPolicy.PROMOTE,
-  torch.ops.aten.index_copy.dimname: CastPolicy.PROMOTE,
 }
+
+# Named tensor overloads were removed in PyTorch 2.13. Keep registering them
+# when running against older PyTorch releases, where they remain available.
+for op, policy in (
+  (get_aten_overload("prod", "dim_Dimname"), CastPolicy.FP32),
+  (get_aten_overload("index_copy", "dimname"), CastPolicy.PROMOTE),
+):
+  if op is not None:
+    autocast_policy[op] = policy
