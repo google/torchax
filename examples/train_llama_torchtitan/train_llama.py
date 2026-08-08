@@ -184,7 +184,7 @@ class Trainer:
     xla_env = torchax.default_env()
     jax.config.update("jax_enable_x64", False)
 
-    jittable_mod = JittableModule(model)
+    jittable_mod = JittableModule(model, env=xla_env)
 
     # split the params to the n devices
 
@@ -192,7 +192,8 @@ class Trainer:
     # to do FSDP one shards the first input args and output
     # on the batch dimension
     def model_fn(weights, buffers, args):
-      return jittable_mod.functional_call("forward", weights, buffers, args)
+      rng = jax.random.key_data(xla_env.get_and_rotate_prng_key())
+      return jittable_mod.functional_call("forward", weights, buffers, rng, *args)
 
     jax_optimizer = optax.sgd(0.01)
     opt_state = torch_view(jax_optimizer.init(jax_view(jittable_mod.params)))

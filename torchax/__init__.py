@@ -89,7 +89,7 @@ def extract_jax(mod: torch.nn.Module, env=None, *, dedup_parameters=True):
   if env is None:
     env = default_env()
 
-  jit_module = JittableModule(mod, dedup_parameters=dedup_parameters)
+  jit_module = JittableModule(mod, env=env, dedup_parameters=dedup_parameters)
 
   states = dict(jit_module.buffers)
   states.update(jit_module.params)
@@ -105,7 +105,8 @@ def extract_jax(mod: torch.nn.Module, env=None, *, dedup_parameters=True):
     (params, buffers, args, kwargs) = env.j2t_iso((params, buffers, args, kwargs))
 
     with env:
-      res = jit_module.functional_call("forward", params, buffers, *args, **kwargs)
+      rng = jax.random.key_data(env.get_and_rotate_prng_key())
+      res = jit_module.functional_call("forward", params, buffers, rng, *args, **kwargs)
 
     return env.t2j_iso(res)
 
