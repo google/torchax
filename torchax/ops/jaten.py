@@ -2234,8 +2234,10 @@ def _aten_avg_pool(
   )
 
   y = pool(inputs, 0.0, jax.lax.add, kernel_size, strides, padding)
+  # lax.div (not `/`) keeps integer inputs integer: truncating division like
+  # torch, with no round trip through floating point.
   if divisor_override is not None:
-    y = y / jnp.array(divisor_override, y.dtype)
+    divisor = jnp.array(divisor_override, y.dtype)
   elif count_include_pad:
     div_shape = list(y.shape)
     div_by = jnp.ones(div_shape, y.dtype) * np.prod(kernel_size)
@@ -2256,14 +2258,14 @@ def _aten_avg_pool(
           idx[j + offset] = -1
         div_by = div_by.at[tuple(idx)].set(np.prod(new_kernel_size))
 
-    y = y / div_by
+    divisor = div_by
   else:
     div_shape = list(inputs.shape)
     div_shape[num_batch_dims] = 1
     div_shape = tuple(div_shape)
     if len(div_shape) - 2 == len(kernel_size):
       div_shape = (1,) + div_shape[1:]
-    y = y / pool(
+    divisor = pool(
       jnp.ones(div_shape, y.dtype),
       jnp.array(0.0, y.dtype),
       jax.lax.add,
@@ -2271,6 +2273,7 @@ def _aten_avg_pool(
       strides,
       padding,
     )
+  y = jax.lax.div(y, jnp.broadcast_to(divisor, y.shape))
   return y.astype(inputs.dtype)
 
 

@@ -12,13 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import functools
 import math
 import unittest
 
+import jax
+import jax.numpy as jnp
 import torch
 from torch.utils import _pytree as pytree
 
 from torchax import tensor
+from torchax.ops import jaten
 
 from . import base_test_util
 
@@ -779,6 +783,45 @@ class TestCoreAtenOps(unittest.TestCase):
     )
     kwargs = {}
     run_export_and_compare(self, torch.ops.aten.avg_pool3d, args, kwargs)
+
+  def test_aten_avg_pool2d_int(self):
+    # Negative values exercise truncating (toward-zero) integer division.
+    args = (
+      torch.randint(-20, 20, (1, 3, 7, 9)).to(torch.int64),
+      [3, 3],
+      [2, 2],
+      [1, 1],
+    )
+    for kwargs in (
+      {"ceil_mode": True, "count_include_pad": True},
+      {"count_include_pad": False},
+      {"divisor_override": 4},
+    ):
+      with self.subTest(kwargs=kwargs):
+        run_export_and_compare(self, torch.ops.aten.avg_pool2d, args, kwargs)
+
+  def test_aten_avg_pool3d_int(self):
+    args = (
+      torch.randint(-20, 20, (1, 2, 6, 7, 8)).to(torch.int64),
+      [2, 3, 2],
+      [2, 2, 2],
+      [1, 1, 0],
+    )
+    kwargs = {"count_include_pad": False}
+    run_export_and_compare(self, torch.ops.aten.avg_pool3d, args, kwargs)
+
+  def test_aten_avg_pool2d_int_lowers_without_float(self):
+    x = jnp.zeros((1, 3, 8, 8), dtype=jnp.int32)
+    for kwargs in (
+      {},
+      {"count_include_pad": False},
+      {"divisor_override": 3},
+    ):
+      f = functools.partial(
+        jaten._aten_avg_pool, kernel_size=(3, 3), padding=1, **kwargs
+      )
+      hlo = jax.jit(f).lower(x).as_text()
+      self.assertNotIn("f32", hlo, msg=f"kwargs={kwargs}:\n{hlo}")
 
   def test_aten_bitwise_and_Scalar_0(self):
     args = (
