@@ -225,4 +225,4 @@ for op, policy in (
     autocast_policy[op] = policy
 
 if hasattr(torch.ops.aten, "qr") and hasattr(torch.ops.aten.qr, "default"):
-    autocast_policy[torch.ops.aten.qr.default] = CastPolicy.FP32
+  autocast_policy[torch.ops.aten.qr.default] = CastPolicy.FP32
