@@ -196,7 +196,6 @@ autocast_policy = {
   torch.ops.aten.fake_quantize_per_tensor_affine.default: CastPolicy.FP32,
   torch.ops.aten.geqrf.default: CastPolicy.FP32,
   torch.ops.aten._lu_with_info.default: CastPolicy.FP32,
-  torch.ops.aten.qr.default: CastPolicy.FP32,
   torch.ops.aten.svd.default: CastPolicy.FP32,
   torch.ops.aten.triangular_solve.default: CastPolicy.FP32,
   torch.ops.aten.fractional_max_pool2d.default: CastPolicy.FP32,
@@ -224,3 +223,6 @@ for op, policy in (
 ):
   if op is not None:
     autocast_policy[op] = policy
+
+if hasattr(torch.ops.aten, "qr") and hasattr(torch.ops.aten.qr, "default"):
+    autocast_policy[torch.ops.aten.qr.default] = CastPolicy.FP32
