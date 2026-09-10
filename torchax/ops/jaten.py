@@ -5107,7 +5107,7 @@ def _aten_qr(input, *args, **kwargs):
 
 
 if hasattr(torch.ops.aten, "qr"):
-    op(torch.ops.aten.qr)(_aten_qr)
+  op(torch.ops.aten.qr)(_aten_qr)
 
 
 # torch.linalg.qr
