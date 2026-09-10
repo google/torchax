@@ -5097,7 +5097,6 @@ def _aten_log_sigmoid(x):
 
 
 # torch.qr
-@op(torch.ops.aten.qr)
 def _aten_qr(input, *args, **kwargs):
   jax_mode = "reduced"
   # torch bool param 'simple=True' corresponds to jax 'reduced' mode,
@@ -5105,6 +5104,10 @@ def _aten_qr(input, *args, **kwargs):
   if kwargs.get("simple") is False:
     jax_mode = "complete"
   return jax.numpy.linalg.qr(input, mode=jax_mode)
+
+
+if hasattr(torch.ops.aten, "qr"):
+    op(torch.ops.aten.qr)(_aten_qr)
 
 
 # torch.linalg.qr
