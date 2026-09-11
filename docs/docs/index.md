@@ -1,5 +1,5 @@
 ![](../assets/logo.jpeg)
-## What is torchax
+## What is torchax 
 
 **torchax** is a PyTorch frontend for JAX. It gives JAX the ability
 to author JAX programs using familiar PyTorch syntax. It also provides
