@@ -54,13 +54,14 @@ class M(torch.nn.Module):
 m = M()
 from torchax.interop import JittableModule
 
-mjit = JittableModule(m)
+mjit = JittableModule(m, env=env)
 
 from torch.nn.utils import stateless
 
 
 def f(weights, x):
-  res = mjit.functional_call("forward", weights, {}, (x,))
+  rng = jax.random.key_data(env.get_and_rotate_prng_key())
+  res = mjit.functional_call("forward", weights, {}, rng, x)
   return torch.sum(res)
 
 
