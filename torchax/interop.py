@@ -427,6 +427,9 @@ def wrap_jax_jit(torch_function, jax_jit_func=jax.jit, kwargs_for_jax=None):
   def call_with_prng(*args, **kwargs):
     out, new_key = jitted(*args, env.prng_key, **kwargs)
     if not isinstance(new_key, jax.core.Tracer):
+      # NOTE: `new_key` is committed to this call's devices, so a later call
+      # with args on other devices fails until `env.prng_key` is reset.
+      # Splitting the key outside the jit would keep it uncommitted.
       env.prng_key = new_key
     return out
 
