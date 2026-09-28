@@ -227,6 +227,41 @@ class JaxJitPRNGThreadingTest(unittest.TestCase):
     self.assertFalse(torch.allclose(a1, c1), "different seeds produced same output")
     self.assertFalse(torch.allclose(a1, a2), "PRNG did not advance within seed scope")
 
+  def test_nested_jax_jit_advances_key(self):
+    """Inner jit calls inside an outer jit get distinct keys, per trace and per call."""
+    outer = interop.jax_jit(lambda x: torch.stack([self.jitted(x), self.jitted(x)]))
+    a = outer(self.x)
+    b = outer(self.x)
+    self.assertFalse(isinstance(self.env.prng_key, jax.core.Tracer))
+    self.assertFalse(torch.allclose(a[0], a[1]), "inner calls shared a key")
+    self.assertFalse(torch.allclose(a, b), "outer calls shared a key")
+
+  def test_bare_jax_jit_does_not_leak_tracer(self):
+    """A bare `jax.jit` around torchax code must not leak a tracer into env.prng_key."""
+    f = jax.jit(interop.jax_view(self.jitted))
+    f(self.x.jax())
+    self.assertFalse(
+      isinstance(self.env.prng_key, jax.core.Tracer),
+      f"env.prng_key leaked a {type(self.env.prng_key).__name__}",
+    )
+    self.jitted(self.x)
+
+  def test_value_and_grad_has_aux_advances_key(self):
+    """`has_aux` output structure is preserved and the key advances between calls."""
+    dropout = torch.nn.Dropout(p=0.5).train()
+
+    def loss_and_aux(x):
+      y = dropout(x)
+      return y.sum(), y
+
+    grad_fn = interop.jax_value_and_grad(loss_and_aux, {"has_aux": True})
+    (_, aux_a), grad_a = grad_fn(self.x)
+    (_, aux_b), _ = grad_fn(self.x)
+    self.assertEqual(grad_a.shape, self.x.shape)
+    self.assertFalse(
+      torch.allclose(aux_a, aux_b), "PRNG key not rotating between calls"
+    )
+
 
 if __name__ == "__main__":
   unittest.main()

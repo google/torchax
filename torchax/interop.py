@@ -383,26 +383,31 @@ def j2t_autograd(fn, call_jax=call_jax):
 fori_loop = torch_view(jax.lax.fori_loop)
 
 
+def _split_env_key(env: tensor.Environment) -> jax.Array:
+  """Split a subkey off `env.prng_key` and advance the env key."""
+  # Splitting outside the traced function keeps `env.prng_key` uncommitted, so
+  # it can be passed alongside args placed on any devices. Under an outer jax
+  # trace that doesn't own the env key (e.g. a bare `jax.jit` around torchax
+  # code), the split is staged into that trace; the env key is then left as is
+  # so the tracer doesn't escape, and randomness is fixed at trace time.
+  old_key = env.prng_key
+  new_key, sub_key = jax.random.split(old_key)
+  if isinstance(old_key, jax.core.Tracer) or not isinstance(new_key, jax.core.Tracer):
+    env.prng_key = new_key
+  return sub_key
+
+
 def wrap_jax_jit(torch_function, jax_jit_func=jax.jit, kwargs_for_jax=None):
-  """Jit a torch function via JAX, threading the PRNG key through the jit
+  """Jit a torch function via JAX, passing a PRNG subkey across the jit
   boundary so random ops (dropout, bernoulli, …) don't leak tracers into
-  `env.prng_key`. The key is appended as the last positional input and the
-  last element of the output tuple; `donate_argnums` stays valid because the
-  key is at the end. Any `in_shardings` / `out_shardings` / `in_specs` /
-  `out_specs` in `kwargs_for_jax` are auto-extended to cover the prng leaf,
-  so callers don't need to know about the threading. When invoked from inside
-  an outer jax trace, the returned `new_key` is itself a tracer; we skip
-  writing it back to `env.prng_key` so the tracer doesn't escape the trace.
+  `env.prng_key`. The subkey is split off `env.prng_key` before each call and
+  appended as the last positional input; `donate_argnums` stays valid because
+  the key is at the end. Any tuple `in_shardings` / `in_specs` in
+  `kwargs_for_jax` are auto-extended to cover the key, so callers don't need
+  to know about the threading.
   """
   kwargs_for_jax = dict(kwargs_for_jax or {})
 
-  if "out_shardings" in kwargs_for_jax:
-    kwargs_for_jax["out_shardings"] = (kwargs_for_jax["out_shardings"], None)
-  if "out_specs" in kwargs_for_jax:
-    kwargs_for_jax["out_specs"] = (
-      kwargs_for_jax["out_specs"],
-      jax.sharding.PartitionSpec(),
-    )
   if "in_shardings" in kwargs_for_jax and isinstance(
     kwargs_for_jax["in_shardings"], tuple
   ):
@@ -418,17 +423,12 @@ def wrap_jax_jit(torch_function, jax_jit_func=jax.jit, kwargs_for_jax=None):
   def jax_func_with_prng(*args_and_key, **kwargs):
     *args, prng_key = args_and_key
     with env.override_property(prng=prng_key):
-      out = jax_func(*args, **kwargs)
-      new_key = env.prng_key
-    return out, new_key
+      return jax_func(*args, **kwargs)
 
   jitted = jax_jit_func(jax_func_with_prng, **kwargs_for_jax)
 
   def call_with_prng(*args, **kwargs):
-    out, new_key = jitted(*args, env.prng_key, **kwargs)
-    if not isinstance(new_key, jax.core.Tracer):
-      env.prng_key = new_key
-    return out
+    return jitted(*args, _split_env_key(env), **kwargs)
 
   return torch_view(call_with_prng)
 
@@ -446,32 +446,22 @@ def jax_shard_map(torch_function, kwargs_for_jax_shard_map=None):
 
 
 def jax_value_and_grad(torch_function, kwargs_for_value_and_grad=None):
-  """value_and_grad with the PRNG key threaded through the aux slot so it does
-  not become a non-scalar second return value that `jax.value_and_grad` would
-  try to differentiate.
+  """value_and_grad with a PRNG subkey passed as the last positional input.
+  The key sits after the differentiated args, so the default `argnums=0`
+  never differentiates it.
   """
-  kwargs_for_value_and_grad = dict(kwargs_for_value_and_grad or {})
-  user_has_aux = kwargs_for_value_and_grad.pop("has_aux", False)
   env = torchax.default_env()
   jax_func = jax_view(torch_function)
 
   def jax_func_with_prng(*args_and_key, **kwargs):
     *args, prng_key = args_and_key
     with env.override_property(prng=prng_key):
-      out = jax_func(*args, **kwargs)
-      new_key = env.prng_key
-    loss, user_aux = out if user_has_aux else (out, None)
-    return loss, (user_aux, new_key)
+      return jax_func(*args, **kwargs)
 
-  graded = jax.value_and_grad(
-    jax_func_with_prng, has_aux=True, **kwargs_for_value_and_grad
-  )
+  graded = jax.value_and_grad(jax_func_with_prng, **(kwargs_for_value_and_grad or {}))
 
   def call_with_prng(*args, **kwargs):
-    (loss, (user_aux, new_key)), grad = graded(*args, env.prng_key, **kwargs)
-    if not isinstance(new_key, jax.core.Tracer):
-      env.prng_key = new_key
-    return ((loss, user_aux), grad) if user_has_aux else (loss, grad)
+    return graded(*args, _split_env_key(env), **kwargs)
 
   return torch_view(call_with_prng)
 
