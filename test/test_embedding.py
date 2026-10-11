@@ -1,4 +1,3 @@
-import functools
 import unittest
 
 import jax
@@ -57,18 +56,19 @@ class TestEmbeddingPaddingIdx(unittest.TestCase):
         # We need to be in train mode for gradients to be computed
         tx_model.train()
 
-        model_jittable = torchax.interop.JittableModule(tx_model)
+        model_jittable = torchax.interop.JittableModule(tx_model, env=self.env)
 
         optimizer = optax.sgd(
           learning_rate=0.1,
         )
         weights = model_jittable.params
         buffers = model_jittable.buffers
+        rng = jax.random.key_data(jax.random.PRNGKey(0))
 
-        model_fn = functools.partial(
-          model_jittable.functional_call,  # type: ignore
-          "forward",
-        )
+        def model_fn(weights, buffers, *args):
+          return model_jittable.functional_call(  # type: ignore
+            "forward", weights, buffers, rng, *args
+          )
 
         train_step = make_train_step(
           model_fn,

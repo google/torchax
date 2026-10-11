@@ -17,7 +17,6 @@ This is the script from this tutorial:
 https://pytorch.org/tutorials/beginner/introyt/trainingyt.html
 """
 
-import functools
 from torchax import train, interop
 import torch
 from torch.utils import _pytree as pytree
@@ -98,12 +97,16 @@ loss_fn = torch.nn.CrossEntropyLoss()
 jax_optimizer = optax.adam(0.01)
 
 model.to("jax")  # move the model to jax device
-model_jittable = interop.JittableModule(model)
+model_jittable = interop.JittableModule(model, env=env)
 weights = model_jittable.params  # these are trainable parameters
 buffers = model_jittable.buffers  # these are non-trainable parameters
 
 opt_state = interop.call_jax(jax_optimizer.init, weights)
-model_fn = functools.partial(model_jittable.functional_call, "forward")
+
+
+def model_fn(weights, buffers, args):
+  rng = jax.random.key_data(env.get_and_rotate_prng_key())
+  return model_jittable.functional_call("forward", weights, buffers, rng, *args)
 
 train_step = train.make_train_step(model_fn, loss_fn, jax_optimizer)
 
