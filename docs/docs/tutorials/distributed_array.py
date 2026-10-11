@@ -518,6 +518,21 @@ print(loss_jit(params, batch))
 batch_single = jax_device_put(batch, jax.devices()[0])
 params_single = jax_device_put(params, jax.devices()[0])
 
+# %% [markdown]
+# `jax_jit` threads torchax's global PRNG key through each call and stores the
+# returned key, which commits it to the devices of that call (here, all 8). Before
+# calling the same jitted function on arrays placed on other devices, reset the key
+# to an uncommitted copy; otherwise JAX rejects the call with incompatible devices.
+
+# %%
+def uncommit_prng_key():
+  # TODO: remove once torchax keeps `env.prng_key` uncommitted across jitted calls.
+  env = tx.default_env()
+  key_data = np.asarray(jax.random.key_data(env.prng_key))
+  env.prng_key = jax.random.wrap_key_data(key_data)
+
+uncommit_prng_key()
+
 # %% colab={"base_uri": "https://localhost:8080/"} id="Z1wgUKXk3vGV" outputId="d66767b7-3f17-482f-b811-919bb1793277"
 # %timeit -n 5 -r 5 grad_fn_jit(params_single, batch_single)[0].jax().block_until_ready()
 
@@ -577,6 +592,8 @@ visualize_array_sharding(params['layers.1.weight'])
 visualize_array_sharding(params['layers.2.weight'])
 
 # %% colab={"base_uri": "https://localhost:8080/"} id="uPCVs-_k3vGW" outputId="618516e9-9736-4ca0-dd22-09d094ce57a2"
+# The key is committed to device 0 by the single-device run above.
+uncommit_prng_key()
 print(loss_jit(params, batch))
 
 # %% id="L9JebLK_3vGW"
