@@ -22,7 +22,6 @@ from collections.abc import Sequence
 import jax
 import numpy as np
 import torch
-import torch.distributed._functional_collectives
 from jax import numpy as jnp
 
 from torchax.ops import jax_reimplement, mappings, op_base, ops_registry

@@ -25,11 +25,15 @@ import jax
 import jax.numpy as jnp
 import numpy
 import torch
-import torch.distributed._functional_collectives
 import torch.func
 import torch.utils._mode_utils as mode_utils
 import torch.utils._python_dispatch as torch_dispatch
 import torch.utils._pytree as torch_pytree
+
+if torch.distributed.is_available():
+  import torch.distributed._functional_collectives as _functional_collectives
+else:
+  _functional_collectives = None
 
 from torchax import amp, config
 from torchax.ops import mappings, ops_registry
@@ -129,7 +133,10 @@ class Tensor(torch.Tensor):
   @classmethod
   def __torch_dispatch__(cls, func, types, args=(), kwargs=None):
     # TODO(hanq): figure out why is dispatch mode not sufficient
-    if func == torch.ops._c10d_functional.wait_tensor.default:
+    if (
+      _functional_collectives is not None
+      and func == torch.ops._c10d_functional.wait_tensor.default
+    ):
       return args[0]._env.dispatch(func, types, args, kwargs)
     if func == torch.ops.prim.device.default:
       return torch.device("privateuseone", 0)
@@ -457,7 +464,10 @@ class Environment(contextlib.ContextDecorator):
     return False
 
   def load_ops(self):
-    from torchax.ops import jaten, jc10d, jtorch, jtorchvision_nms  # noqa: F401
+    from torchax.ops import jaten, jtorch, jtorchvision_nms  # noqa: F401
+
+    if torch.distributed.is_available():
+      from torchax.ops import jc10d  # noqa: F401
 
     for k, v in itertools.chain(
       ops_registry.all_aten_ops.items(), ops_registry.all_torch_functions.items()
@@ -605,12 +615,13 @@ class Environment(contextlib.ContextDecorator):
       op = self._get_op_or_decomp(func)
 
       old_args, old_kwargs = args, kwargs
-      with self._dispatch_mode:
-        args, kwargs = torch_pytree.tree_map_only(
-          torch.distributed._functional_collectives.AsyncCollectiveTensor,
-          torch.distributed._functional_collectives.wait_tensor,
-          (args, kwargs),
-        )
+      if _functional_collectives is not None:
+        with self._dispatch_mode:
+          args, kwargs = torch_pytree.tree_map_only(
+            _functional_collectives.AsyncCollectiveTensor,
+            _functional_collectives.wait_tensor,
+            (args, kwargs),
+          )
 
       try:
         if not op.is_view_op:
@@ -702,7 +713,9 @@ class Environment(contextlib.ContextDecorator):
       ):
         if x.squeeze().ndim == 0:
           return x.item()
-      if isinstance(x, torch.distributed._functional_collectives.AsyncCollectiveTensor):
+      if _functional_collectives is not None and isinstance(
+        x, _functional_collectives.AsyncCollectiveTensor
+      ):
         x = x.wait()
       assert isinstance(x, Tensor) or isinstance(x, View), (
         f"Expect a Tensor or a View but got {type(x)}; usually this means there is a mixed math between XLATensor and torch.Tensor"
