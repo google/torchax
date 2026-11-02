@@ -35,11 +35,25 @@ jobs:
           grep "__version__" torchax/__init__.py
 
       - name: Build Wheel and Sdist
-        run: python -m build --wheel
+        run: |
+          pip install twine
+          python -m build --wheel
 
-      - name: Publish to PyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
-        # Note: We are NOT providing a password here because we will use Trusted Publishing.
-        # If you must use a token, uncomment the lines below:
-        # with:
-        #   password: ${{ secrets.PYPI_API_TOKEN }}
+      - name: Authenticate to Google Cloud (OSS Exit Gate)
+        uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed
+        with:
+          workload_identity_provider: 'projects/305452601764/locations/global/workloadIdentityPools/builders/providers/github'
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@e427ad8a34f8676edf47cf7d7925499adf3eb74f
+
+      - name: Stage to OSS Exit Gate and upload manifest
+        run: |
+          python -m twine upload \
+            --repository-url "https://us-python.pkg.dev/oss-exit-gate-prod/torchax--pypi/" \
+            -u oauth2accesstoken \
+            -p "$(gcloud auth print-access-token)" \
+            dist/*
+          echo '{"publish_all": true}' > manifest.json
+          gcloud storage cp manifest.json \
+            "gs://oss-exit-gate-prod-projects-bucket/torchax/pypi/manifests/manifest-${{ github.run_id }}-${{ github.run_attempt }}.json"
