@@ -1793,7 +1793,11 @@ def _aten_bitwise_right_shift(input, other):
 def _aten_sum(self, dim=None, keepdim=False, dtype=None):
   if not dim:
     dim = None
-  return _with_reduction_scalar(jnp.sum, self, dim, keepdim)
+  if dtype is not None:
+    dtype = mappings.t2j_dtype(dtype)
+  return _with_reduction_scalar(
+    functools.partial(jnp.sum, dtype=dtype), self, dim, keepdim
+  )
 
 
 # aten.sqrt

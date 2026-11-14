@@ -4186,6 +4186,23 @@ class TestCoreAtenOps(unittest.TestCase):
     kwargs = {}
     run_export_and_compare(self, torch.ops.aten.sum.dim_IntList, args, kwargs)
 
+  def test_aten_sum_dim_IntList_dtype(self):
+    # bfloat16 input accumulated in float32.
+    args = (
+      torch.tensor([1.0] + [2.0**-9] * 255, dtype=torch.bfloat16),
+      None,
+    )
+    kwargs = {"dtype": torch.float32}
+    run_export_and_compare(
+      self, torch.ops.aten.sum.dim_IntList, args, kwargs, check_dtype=True
+    )
+    # The reduction itself happens in the requested dtype.
+    args = (torch.tensor([100, 100, 7], dtype=torch.int8), [0])
+    kwargs = {"dtype": torch.int8}
+    run_export_and_compare(
+      self, torch.ops.aten.sum.dim_IntList, args, kwargs, check_dtype=True
+    )
+
   def test_aten_tan_0(self):
     args = (torch.randn((10, 10)).to(torch.float32),)
     kwargs = {}
